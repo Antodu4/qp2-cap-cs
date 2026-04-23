@@ -165,7 +165,7 @@ subroutine ZMQ_pt2(E, pt2_data, pt2_data_err, relative_error, N_in)
       state_average_weight(pt2_stoch_istate) = 1.d0
       TOUCH state_average_weight pt2_stoch_istate selection_weight
 
-      PROVIDE nproc pt2_F all_mo_integrals mo_one_e_integrals pt2_w
+      PROVIDE nproc pt2_F mo_two_e_integrals_in_map mo_one_e_integrals pt2_w
       PROVIDE psi_selectors pt2_u pt2_J pt2_R
       call new_parallel_job(zmq_to_qp_run_socket, zmq_socket_pull, 'pt2')
 
@@ -212,7 +212,6 @@ subroutine ZMQ_pt2(E, pt2_data, pt2_data_err, relative_error, N_in)
           ipos += 1
         endif
       enddo
-      call write_int(6,pt2_stoch_istate,'State')
       call write_int(6,sum(pt2_F),'Number of tasks')
       call write_int(6,ipos,'Number of fragmented tasks')
 
@@ -410,7 +409,7 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   integer, allocatable :: task_id(:)
   integer, allocatable :: index(:)
 
-  double precision :: v, x, x2, x3, avg, avg2, avg3(N_states), eqt, E0, v0, n0(N_states)
+  double precision :: v, x, x2, x3, avg, avg2, avg3(N_states), eqt, E0, v0, n0(N_states), E0_im,avg_im, E0_norm, avg_norm
   double precision :: eqta(N_states)
   double precision :: time, time1, time0
 
@@ -434,6 +433,9 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   integer           :: size1,size2,size3,size4
 
   double precision :: conv_crit
+  
+  complex*16 :: e_itheta
+  e_itheta = dcmplx(cos(theta_cs), -sin(theta_cs))
 
   sending =.False.
 
@@ -460,6 +462,10 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
 
   pt2_data % pt2(pt2_stoch_istate) = -huge(1.)
   pt2_data_err % pt2(pt2_stoch_istate) = huge(1.)
+  pt2_data % pt2_im(pt2_stoch_istate) = 0d0!-huge(1.)
+  pt2_data_err % pt2_im(pt2_stoch_istate) = 0d0!huge(1.)
+  pt2_data % pt2_norm(pt2_stoch_istate) = 0d0!-huge(1.)
+  pt2_data_err % pt2_norm(pt2_stoch_istate) = 0d0!huge(1.)
   pt2_data % variance(pt2_stoch_istate) = huge(1.)
   pt2_data_err % variance(pt2_stoch_istate) = huge(1.)
   pt2_data % overlap(:,pt2_stoch_istate) = 0.d0
@@ -501,10 +507,14 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
         if(U >= pt2_n_0(t+1)) then
           t=t+1
           E0 = 0.d0
+          E0_im = 0d0
+          E0_norm = 0d0
           v0 = 0.d0
           n0(:) = 0.d0
           do i=pt2_n_0(t),1,-1
             E0 += pt2_data_I(i) % pt2(pt2_stoch_istate)
+            E0_im += pt2_data_I(i) % pt2_im(pt2_stoch_istate)
+            E0_norm += pt2_data_I(i) % pt2_norm(pt2_stoch_istate)
             v0 += pt2_data_I(i) % variance(pt2_stoch_istate)
             n0(:) += pt2_data_I(i) % overlap(:,pt2_stoch_istate)
           end do
@@ -529,15 +539,19 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
         call pt2_dealloc(pt2_data_teeth)
 
         avg  = E0 + pt2_data_S(t) % pt2(pt2_stoch_istate) / dble(c)
+        avg_im  = E0_im + pt2_data_S(t) % pt2_im(pt2_stoch_istate) / dble(c)
+        avg_norm  = E0_norm + pt2_data_S(t) % pt2_norm(pt2_stoch_istate) / dble(c)
         avg2 = v0 + pt2_data_S(t) % variance(pt2_stoch_istate) / dble(c)
         avg3(:) = n0(:) + pt2_data_S(t) % overlap(:,pt2_stoch_istate) / dble(c)
-        if (((c>=10).and.(avg /= 0.d0)) .or. (n == N_det_generators) ) then
+        if ((avg /= 0.d0) .or. (n == N_det_generators) ) then
           do_exit = .true.
         endif
         if (qp_stop()) then
           stop_now = .True.
         endif
         pt2_data % pt2(pt2_stoch_istate) = avg
+        pt2_data % pt2_im(pt2_stoch_istate) = avg_im
+        pt2_data % pt2_norm(pt2_stoch_istate) = avg_norm
         pt2_data % variance(pt2_stoch_istate) = avg2
         pt2_data % overlap(:,pt2_stoch_istate) = avg3(:)
         call wall_time(time)
@@ -547,6 +561,14 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
           eqt = dsqrt(eqt / (dble(c) - 1.5d0))
           pt2_data_err % pt2(pt2_stoch_istate) = eqt
 
+          eqt = dabs((pt2_data_S2(t) % pt2_im(pt2_stoch_istate) / c) - (pt2_data_S(t) % pt2_im(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
+          eqt = dsqrt(eqt / (dble(c) - 1.5d0))
+          pt2_data_err % pt2_im(pt2_stoch_istate) = eqt
+
+          eqt = dabs((pt2_data_S2(t) % pt2_norm(pt2_stoch_istate) / c) - (pt2_data_S(t) % pt2_norm(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
+          eqt = dsqrt(eqt / (dble(c) - 1.5d0))
+          pt2_data_err % pt2_norm(pt2_stoch_istate) = eqt
+
           eqt = dabs((pt2_data_S2(t) % variance(pt2_stoch_istate) / c) - (pt2_data_S(t) % variance(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
           eqt = dsqrt(eqt / (dble(c) - 1.5d0))
           pt2_data_err % variance(pt2_stoch_istate) = eqt
@@ -555,11 +577,20 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
           eqta(:) = dsqrt(eqta(:) / (dble(c) - 1.5d0))
           pt2_data_err % overlap(:,pt2_stoch_istate) = eqta(:)
 
-
           if ((time - time1 > 1.d0) .or. (n==N_det_generators)) then
             time1 = time
+            if (do_cap .and. cap_pt2) then
+              value1 =  pt2_data     % pt2(pt2_stoch_istate) + dble(psi_energy_cap(pt2_stoch_istate))+nuclear_repulsion
+            else
+              value1 =  pt2_data     % pt2(pt2_stoch_istate) + E
+            endif
 
-            value1 =  pt2_data     % pt2(pt2_stoch_istate) + E
+            if (do_cs .and. cs_pt2) then 
+              value1 =  pt2_data     % pt2(pt2_stoch_istate) + dble(psi_energy_cs(pt2_stoch_istate) + e_itheta * dcmplx(nuclear_repulsion,0d0))
+            else
+              value1 =  pt2_data     % pt2(pt2_stoch_istate) + E
+            endif 
+
             error1 =  pt2_data_err % pt2(pt2_stoch_istate)
             value2 =  pt2_data     % pt2(pt2_stoch_istate)
             error2 =  pt2_data_err % pt2(pt2_stoch_istate)
@@ -598,6 +629,38 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
             adjustl(adjustr(str_value4)//'('//str_error4(1:1)//')'),&
             adjustl(str_conv),&
             time-time0
+
+            if (do_cap .and. cap_pt2) then
+              value1 =  pt2_data     % pt2_im(pt2_stoch_istate) + dimag(psi_energy_cap(pt2_stoch_istate))
+              error1 =  pt2_data_err % pt2_im(pt2_stoch_istate)
+              value2 =  pt2_data     % pt2_im(pt2_stoch_istate)
+              error2 =  pt2_data_err % pt2_im(pt2_stoch_istate)
+              call format_w_error(value1,error1,size1,8,format_value1,str_error1)
+              call format_w_error(value2,error2,size2,8,format_value2,str_error2)
+              write(str_value1,'('//format_value1//')') value1
+              write(str_value2,'('//format_value2//')') value2
+              write(*,'(10X,X,X,A20,X,A16,X,ES12.5)') &
+              adjustl(adjustr(str_value1)//'('//str_error1(1:1)//')'),&
+              adjustl(adjustr(str_value2)//'('//str_error2(1:1)//')'),&
+              pt2_data     % pt2_norm(pt2_stoch_istate)
+            endif
+
+            if (do_cs .and. cs_pt2) then
+              value1 =  pt2_data     % pt2_im(pt2_stoch_istate) + dimag(psi_energy_cs(pt2_stoch_istate) +  e_itheta * dcmplx(nuclear_repulsion,0d0))
+              error1 =  pt2_data_err % pt2_im(pt2_stoch_istate)
+              value2 =  pt2_data     % pt2_im(pt2_stoch_istate)
+              error2 =  pt2_data_err % pt2_im(pt2_stoch_istate)
+              call format_w_error(value1,error1,size1,8,format_value1,str_error1)
+              call format_w_error(value2,error2,size2,8,format_value2,str_error2)
+              write(str_value1,'('//format_value1//')') value1
+              write(str_value2,'('//format_value2//')') value2
+              write(*,'(10X,X,X,A20,X,A16,X,ES12.5)') &
+              adjustl(adjustr(str_value1)//'('//str_error1(1:1)//')'),&
+              adjustl(adjustr(str_value2)//'('//str_error2(1:1)//')'),&
+              pt2_data     % pt2_norm(pt2_stoch_istate)
+            endif
+
+
             if (stop_now .or. (                                      &
                   (do_exit .and. (dabs(pt2_data_err % pt2(pt2_stoch_istate)) /    &
                   (1.d-20 + dabs(pt2_data % pt2(pt2_stoch_istate)) ) <= relative_error))) ) then
@@ -647,6 +710,7 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
       endif
     end if
   end do
+
   do i=1,N_det_generators
     call pt2_dealloc(pt2_data_I(i))
   enddo
@@ -895,8 +959,9 @@ END_PROVIDER
    do t=1, pt2_N_teeth
      tooth_width = tilde_cW(pt2_n_0(t+1)) - tilde_cW(pt2_n_0(t))
      if (tooth_width == 0.d0) then
-       tooth_width = max(1.d-15,sum(tilde_w(pt2_n_0(t):pt2_n_0(t+1))))
+       tooth_width = sum(tilde_w(pt2_n_0(t):pt2_n_0(t+1)))
      endif
+     ASSERT(tooth_width > 0.d0)
      do i=pt2_n_0(t)+1, pt2_n_0(t+1)
        pt2_w(i) = tilde_w(i) * pt2_W_T / tooth_width
      end do
@@ -922,5 +987,3 @@ BEGIN_PROVIDER [ double precision, pt2_overlap, (N_states, N_states) ]
  END_DOC
  pt2_overlap(1:N_states,1:N_states) = 0.d0
 END_PROVIDER
-
-

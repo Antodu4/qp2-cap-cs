@@ -88,8 +88,11 @@ subroutine select_connected(i_generator,E0,pt2_data,b,subset,csubset)
       particle_mask(k,1) = iand(generators_bitmask(k,1,s_part), not(psi_det_generators(k,1,i_generator)) )
       particle_mask(k,2) = iand(generators_bitmask(k,2,s_part), not(psi_det_generators(k,2,i_generator)) )
   enddo
-  if ((subset == 1).and.(sum(hole_mask(:,2)) == 0_bit_kind)) then
+  if ((subset == 1).and.(sum(hole_mask(:,2)) == 0_bit_kind) &
+      .and. .not.(cs_pt2 .and. do_cs)                       &
+      .and. .not.(cap_pt2 .and. do_cap)) then
      ! No beta electron to excite
+     ! (non exécuté en mode CAP/CS : géré par select_singles_and_doubles via fill_buffer_cs/cap)
      call select_singles(i_generator,hole_mask,particle_mask,fock_diag_tmp,E0,pt2_data,b)
   endif
   call select_singles_and_doubles(i_generator,hole_mask,particle_mask,fock_diag_tmp,E0,pt2_data,b,subset,csubset)
@@ -178,7 +181,8 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
   integer(bit_kind), allocatable        :: minilist(:, :, :), fullminilist(:, :, :)
   logical, allocatable                  :: banned(:,:,:), bannedOrb(:,:)
   double precision, allocatable         :: coef_fullminilist_rev(:,:)
-  double precision, allocatable         :: mat(:,:,:)
+  double precision, allocatable         :: mat(:,:,:), hij_cache(:,:,:)
+  complex*16, allocatable               :: mat_c(:,:,:)
 
 
   PROVIDE psi_bilinear_matrix_columns_loc psi_det_alpha_unique psi_det_beta_unique
@@ -205,7 +209,7 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
   ! Removed to avoid introducing determinants already presents in the wf
   !double precision, parameter :: norm_thr = 1.d-16
 
-  allocate (indices(N_det), &
+  allocate (indices(N_det), hij_cache(mo_num,mo_num,2),          &
       exc_degree(max(N_det_alpha_unique,N_det_beta_unique)))
 
   ! Pre-compute excitation degrees wrt alpha determinants
@@ -319,7 +323,15 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
 
 
   allocate(banned(mo_num, mo_num,2), bannedOrb(mo_num, 2))
-  allocate(mat(N_states, mo_num, mo_num))
+
+  if (cap_pt2 .and. do_cap) then
+    allocate(mat_c(N_states, mo_num, mo_num))
+  else if (cs_pt2 .and. do_cs) then
+    allocate(mat_c(N_states, mo_num, mo_num))
+  else
+    allocate(mat(N_states, mo_num, mo_num))
+  endif
+
   maskInd = -1
 
   do s1 = 1, 2
@@ -511,13 +523,25 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
 
           maskInd = maskInd + 1
           if(mod(maskInd, csubset) == (subset-1)) then
+            call get_mo_two_e_integrals_ij(h2,h1,mo_num,hij_cache(1,1,1),mo_integrals_map)
+            if (sp /= 3) then  ! AA or BB
+              call get_mo_two_e_integrals_ij(h1,h2,mo_num,hij_cache(1,1,2),mo_integrals_map)
+            endif
+
             call spot_isinwf(mask, fullminilist, i_generator, fullinteresting(0), banned, fullMatch, fullinteresting)
             if(fullMatch) cycle
 
-            call splash_pq(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat, interesting)
-
-            call fill_buffer_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat, buf)
-          end if
+            if (cap_pt2 .and. do_cap) then
+              call splash_pq_cap(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat_c, interesting)
+              call fill_buffer_cap_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat_c, buf)
+            else if (cs_pt2 .and. do_cs) then
+              call splash_pq_cs(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat_c, interesting)
+              call fill_buffer_cs_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat_c, buf)
+            else
+              call splash_pq(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat, interesting, hij_cache)
+              call fill_buffer_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat, buf)
+            endif    
+      end if
 
 
         enddo
@@ -530,7 +554,14 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
     enddo
   enddo
   deallocate(preinteresting, prefullinteresting, interesting, fullinteresting)
-  deallocate(banned, bannedOrb, mat)
+  deallocate(banned, bannedOrb, hij_cache)
+  if (cap_pt2 .and. do_cap) then
+    deallocate(mat_c)
+  else if (cs_pt2 .and. do_cs) then
+    deallocate(mat_c)
+  else
+    deallocate(mat)
+  endif
 end subroutine
 
 BEGIN_TEMPLATE
@@ -760,7 +791,6 @@ subroutine fill_buffer_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, fock_
       enddo
 
       do_diag = sum(dabs(coef)) > 0.001d0 .and. N_states > 1
-      !do_diag = .False.
 
       double precision :: eigvalues(N_states+1)
       double precision :: work(1+6*(N_states+1)+2*(N_states+1)**2)
@@ -914,7 +944,7 @@ single ; do p1=1,mo_num ; enddo ; p2=1            ;       ; .False. ;;
 
 END_TEMPLATE
 
-subroutine splash_pq(mask, sp, det, i_gen, N_sel, bannedOrb, banned, mat, interesting)
+subroutine splash_pq(mask, sp, det, i_gen, N_sel, bannedOrb, banned, mat, interesting, hij_cache)
   use bitmasks
   implicit none
   BEGIN_DOC
@@ -926,6 +956,7 @@ subroutine splash_pq(mask, sp, det, i_gen, N_sel, bannedOrb, banned, mat, intere
   integer, intent(in)            :: sp, i_gen, N_sel
   integer, intent(in)            :: interesting(0:N_sel)
   integer(bit_kind),intent(in)   :: mask(N_int, 2), det(N_int, 2, N_sel)
+  double precision, intent(in)   :: hij_cache(mo_num, mo_num, 2)
   logical, intent(inout)         :: bannedOrb(mo_num, 2), banned(mo_num, mo_num, 2)
   double precision, intent(inout) :: mat(N_states, mo_num, mo_num)
 
@@ -995,9 +1026,9 @@ subroutine splash_pq(mask, sp, det, i_gen, N_sel, bannedOrb, banned, mat, intere
         if(nt == 4) then
           call get_d2(det(1,1,i), phasemask, bannedOrb, banned, mat, mask, h, p, sp, psi_selectors_coef_transp(1, interesting(i)))
         else if(nt == 3) then
-          call get_d1(det(1,1,i), phasemask, bannedOrb, banned, mat, mask, h, p, sp, psi_selectors_coef_transp(1, interesting(i)))
+          call get_d1(det(1,1,i), phasemask, bannedOrb, banned, mat, mask, h, p, sp, psi_selectors_coef_transp(1, interesting(i)), hij_cache)
         else
-          call get_d0(det(1,1,i), phasemask, bannedOrb, banned, mat, mask, h, p, sp, psi_selectors_coef_transp(1, interesting(i)))
+          call get_d0(det(1,1,i), phasemask, bannedOrb, banned, mat, mask, h, p, sp, psi_selectors_coef_transp(1, interesting(i)), hij_cache)
         end if
     else if(nt == 4) then
         call bitstring_to_list_in_selection(mobMask(1,1), p(1,1), p(0,1), N_int)
@@ -1198,7 +1229,7 @@ subroutine get_d2(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
 end
 
 
-subroutine get_d1(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
+subroutine get_d1(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs, hij_cache)
   use bitmasks
   implicit none
 
@@ -1209,6 +1240,7 @@ subroutine get_d1(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
   double precision, intent(in)   :: coefs(N_states)
   double precision, intent(inout) :: mat(N_states, mo_num, mo_num)
   integer, intent(in)            :: h(0:2,2), p(0:4,2), sp
+  double precision, intent(in)   :: hij_cache(mo_num, mo_num, 2)
 
   double precision, external     :: get_phase_bi, mo_two_e_integral
   logical                        :: ok
@@ -1250,13 +1282,11 @@ subroutine get_d1(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
     p1 = p(1,ma)
     p2 = p(2,ma)
     if(.not. bannedOrb(puti, mi)) then
-      call get_mo_two_e_integrals(hfix,p1,p2,mo_num,hij_cache1(1,1),mo_integrals_map)
-      call get_mo_two_e_integrals(hfix,p2,p1,mo_num,hij_cache1(1,2),mo_integrals_map)
       tmp_row = 0d0
       do putj=1, hfix-1
         if(lbanned(putj, ma)) cycle
         if(banned(putj, puti,bant)) cycle
-        hij = hij_cache1(putj,1) - hij_cache1(putj,2)
+        hij = hij_cache(hfix,putj,1) - hij_cache(putj,hfix,1)
         if (hij /= 0.d0) then
           hij = hij * get_phase_bi(phasemask, ma, ma, putj, p1, hfix, p2, N_int)
           !DIR$ LOOP COUNT AVG(4)
@@ -1268,7 +1298,7 @@ subroutine get_d1(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
       do putj=hfix+1, mo_num
         if(lbanned(putj, ma)) cycle
         if(banned(putj, puti,bant)) cycle
-        hij = hij_cache1(putj,2) - hij_cache1(putj,1)
+        hij = hij_cache(putj,hfix,1) - hij_cache(hfix,putj,1)
         if (hij /= 0.d0) then
           hij = hij * get_phase_bi(phasemask, ma, ma, hfix, p1, putj, p2, N_int)
           !DIR$ LOOP COUNT AVG(4)
@@ -1459,7 +1489,7 @@ end
 
 
 
-subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
+subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs, hij_cache)
   use bitmasks
   implicit none
 
@@ -1470,6 +1500,7 @@ subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
   double precision, intent(in) :: coefs(N_states)
   double precision, intent(inout) :: mat(N_states, mo_num, mo_num)
   integer, intent(in) :: h(0:2,2), p(0:4,2), sp
+  double precision, intent(in)   :: hij_cache(mo_num, mo_num, 2)
 
   integer :: i, j, k, s, h1, h2, p1, p2, puti, putj
   double precision :: hij, phase
@@ -1478,17 +1509,11 @@ subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
 
   integer, parameter :: bant=1
 
-  double precision, allocatable :: hij_cache(:,:)
-
   PROVIDE mo_integrals_threshold
 
-  allocate(hij_cache(mo_num,mo_num))
-
   if(sp == 3) then ! AB
-
     h1 = p(1,1)
     h2 = p(1,2)
-    call get_mo_two_e_integrals_ij(h2,h1,mo_num,hij_cache,mo_integrals_map)
     do p1=1, mo_num
       if(bannedOrb(p1, 1)) cycle
       do p2=1, mo_num
@@ -1499,7 +1524,7 @@ subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
           call i_h_j(gen, det, N_int, hij)
         else
           phase = get_phase_bi(phasemask, 1, 2, h1, p1, h2, p2, N_int)
-          hij = hij_cache(p2,p1) * phase
+          hij = hij_cache(p2,p1,1) * phase
         end if
         if (dabs(hij) < mo_integrals_threshold) cycle
         !DIR$ LOOP COUNT AVG(4)
@@ -1510,10 +1535,8 @@ subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
     end do
 
   else ! AA BB
-
     p1 = p(1,sp)
     p2 = p(2,sp)
-    call get_mo_two_e_integrals_ij(p2,p1,mo_num,hij_cache,mo_integrals_map)
     do puti=1, mo_num
       if (bannedOrb(puti, sp)) cycle
       do putj=puti+1, mo_num
@@ -1524,7 +1547,7 @@ subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
           call i_h_j(gen, det, N_int, hij)
           if (dabs(hij) < mo_integrals_threshold) cycle
         else
-          hij = hij_cache(putj,puti) - hij_cache(puti,putj)
+          hij = hij_cache(putj,puti,1) - hij_cache(putj,puti,2)
           if (dabs(hij) < mo_integrals_threshold) cycle
           hij = hij * get_phase_bi(phasemask, sp, sp, puti, p1 , putj, p2, N_int)
         end if
@@ -1534,10 +1557,7 @@ subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs)
         enddo
       end do
     end do
-
   end if
-
-  deallocate(hij_cache)
 
 end
 
@@ -1621,8 +1641,3 @@ subroutine bitstring_to_list_in_selection( string, list, n_elements, Nint)
 
 end
 !
-
-
-
-
-

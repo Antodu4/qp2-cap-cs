@@ -123,6 +123,10 @@ The ``qp_`` commands can be run without specifying the |EZFIO| directory:
 
   :command:`qp convert_output_to_ezfio` : runs :ref:`qp_convert_output_to_ezfio`
 
+.. option:: convert_orca_to_ezfio
+
+  :command:`qp convert_orca_to_ezfio` : runs :ref:`qp_convert_orca_to_ezfio`
+
 .. option:: create_ezfio
 
   :command:`qp create_ezfio` : runs :ref:`qp_create_ezfio`
@@ -146,8 +150,3 @@ The ``qp_`` commands can be run without specifying the |EZFIO| directory:
 .. option:: update
 
   :command:`qp update` : runs :ref:`qp_update`
-
-
-
-
-

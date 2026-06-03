@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-convert output of GAMESS/GAU$$IAN to ezfio
+convert output of GAMESS/GAU$$IAN/ORCA to ezfio
 
 Usage:
     qp_convert_output_to_ezfio [-o EZFIO_DIR] FILE

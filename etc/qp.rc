@@ -104,7 +104,7 @@ function qp()
       PS1="\$(_check_ezfio)\n$PS1"
       ;;
 
-    "plugins"|"update"|"convert_output_to_ezfio")
+    "plugins"|"update"|"convert_output_to_ezfio"")
       COMMAND='qp_$@'
       eval "$COMMAND"
       unset COMMAND

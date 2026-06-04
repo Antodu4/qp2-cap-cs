@@ -42,6 +42,7 @@ Usage:
   Running quantum package commands:
 
     qp convert_output_to_ezfio
+    qp convert_orca_to_ezfio
     qp create_ezfio
     qp plugins                      The corresponding commands start with "qp_".
     qp reset                        To get help for a command <qp_command>, run
@@ -104,7 +105,7 @@ function qp()
       PS1="\$(_check_ezfio)\n$PS1"
       ;;
 
-    "plugins"|"update"|"convert_output_to_ezfio"")
+    "plugins"|"update"|"convert_output_to_ezfio"|"convert_orca_to_ezfio")
       COMMAND='qp_$@'
       eval "$COMMAND"
       unset COMMAND
@@ -165,6 +166,10 @@ _qp_Complete()
         ;;
       convert_output_to_ezfio)
         COMPREPLY=( $(compgen -W "-o $(\ls)" -- ${cur} ) )
+        return 0
+        ;;
+      convert_orca_to_ezfio)
+        COMPREPLY=( $(compgen -W "-o $(\\ls)" -- ${cur} ) )
         return 0
         ;;
       create_ezfio)
@@ -229,6 +234,7 @@ _qp_Complete()
                                    create_ezfio \
                                    test \
                                    convert_output_to_ezfio \
+                                   convert_orca_to_ezfio \
                                    -h update' -- $cur ) )
 
   esac

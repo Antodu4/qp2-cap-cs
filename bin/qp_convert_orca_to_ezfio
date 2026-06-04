@@ -111,11 +111,29 @@ def main_json(FILE, EZFIO_FILE):
 
 def main_out(FILE, EZFIO_FILE):
     """Conversion depuis le fichier texte ORCA (.out) via resultsFile."""
-    import subprocess
-    qp_convert = os.path.join(QP_ROOT, "bin", "qp_convert_output_to_ezfio")
-    result = subprocess.run([qp_convert, FILE, "-o", EZFIO_FILE])
-    if result.returncode != 0:
-        sys.exit(result.returncode)
+    import importlib.util
+
+    # Charge qp_convert_output_to_ezfio comme module (sans exécuter __main__)
+    # pour récupérer sa fonction write_ezfio (qui écrit directement dans ezfio).
+    conv_path = os.path.join(QP_ROOT, "bin", "qp_convert_output_to_ezfio")
+    spec = importlib.util.spec_from_file_location("qp_convert_output_to_ezfio", conv_path)
+    conv_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(conv_mod)
+
+    # Utilise OrcaFile directement (bypass de getFile() qui ne détecte pas ORCA)
+    try:
+        from resultsFile import OrcaFile
+    except ImportError:
+        print("Error: resultsFile Python library not installed or does not support ORCA text format.")
+        sys.exit(1)
+
+    try:
+        res = OrcaFile(FILE)
+    except Exception as e:
+        print(f"Error: resultsFile cannot parse '{os.path.basename(FILE)}': {e}")
+        sys.exit(1)
+
+    conv_mod.write_ezfio(res, EZFIO_FILE)
 
 
 def main(FILE, EZFIO_FILE):

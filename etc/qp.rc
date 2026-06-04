@@ -169,7 +169,7 @@ _qp_Complete()
         return 0
         ;;
       convert_orca_to_ezfio)
-        COMPREPLY=( $(compgen -W "-o $(\\ls)" -- ${cur} ) )
+        COMPREPLY=( $(compgen -W "-o $(\ls)" -- ${cur} ) )
         return 0
         ;;
       create_ezfio)

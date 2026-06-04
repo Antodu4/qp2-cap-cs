@@ -36,6 +36,13 @@ except:
     print("Use   pip install trexio-tools   to install it.")
     sys.exit(1)
 
+try:
+    import scipy
+except ImportError:
+    print("Error: scipy is not installed (required by trexio-tools for ORCA conversion).")
+    print("Use   pip install scipy   to install it.")
+    sys.exit(1)
+
 
 def get_full_path(file_path):
     file_path = os.path.expanduser(file_path)

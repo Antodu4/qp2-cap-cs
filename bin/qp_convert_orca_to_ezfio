@@ -55,6 +55,16 @@ class NoneDict(dict):
     def __missing__(self, key):
         return None
 
+def is_json_file(filepath):
+    """Retourne True si le fichier commence par '{' (format JSON ORCA)."""
+    with open(filepath, 'r', errors='replace') as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped:
+                return stripped[0] == '{'
+    return False
+
+
 def sanitize_orca_json(filepath):
     """Return a path to a sanitized copy of the ORCA JSON file.
 
@@ -65,10 +75,10 @@ def sanitize_orca_json(filepath):
     """
     with open(filepath, 'r', errors='replace') as f:
         content = f.read()
-    # Replace bare NaN / Infinity (not inside strings) with null
-    sanitized = re.sub(r'\bNaN\b', 'null', content)
-    sanitized = re.sub(r'\bInfinity\b', 'null', sanitized)
-    sanitized = re.sub(r'-Infinity\b', 'null', sanitized)
+    # Replace bare NaN / Infinity / nan / inf (case-insensitive) with null
+    sanitized = re.sub(r'\bNaN\b', 'null', content, flags=re.IGNORECASE)
+    sanitized = re.sub(r'[+-]?Infinity\b', 'null', sanitized, flags=re.IGNORECASE)
+    sanitized = re.sub(r'\binf\b', 'null', sanitized, flags=re.IGNORECASE)
     if sanitized == content:
         return filepath, None
     tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
@@ -77,7 +87,8 @@ def sanitize_orca_json(filepath):
     return tmp.name, tmp.name
 
 
-def main(FILE, EZFIO_FILE):
+def main_json(FILE, EZFIO_FILE):
+    """Conversion depuis le format JSON ORCA via trexio_tools."""
     trexio_file = EZFIO_FILE + ".trexio.h5"
 
     json_input, tmp_path = sanitize_orca_json(FILE)
@@ -96,6 +107,23 @@ def main(FILE, EZFIO_FILE):
             os.unlink(tmp_path)
 
     write_ezfio(trexio_file, EZFIO_FILE)
+
+
+def main_out(FILE, EZFIO_FILE):
+    """Conversion depuis le fichier texte ORCA (.out) via resultsFile."""
+    import subprocess
+    qp_convert = os.path.join(QP_ROOT, "bin", "qp_convert_output_to_ezfio")
+    result = subprocess.run([qp_convert, FILE, "-o", EZFIO_FILE])
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+
+
+def main(FILE, EZFIO_FILE):
+    if is_json_file(FILE):
+        main_json(FILE, EZFIO_FILE)
+    else:
+        print(f"Info: '{os.path.basename(FILE)}' est un fichier texte ORCA, utilisation de resultsFile.")
+        main_out(FILE, EZFIO_FILE)
 
 
 if __name__ == '__main__':

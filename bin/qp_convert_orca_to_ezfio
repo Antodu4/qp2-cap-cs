@@ -115,8 +115,11 @@ def main_out(FILE, EZFIO_FILE):
 
     # Charge qp_convert_output_to_ezfio comme module (sans exécuter __main__)
     # pour récupérer sa fonction write_ezfio (qui écrit directement dans ezfio).
+    # Nécessite SourceFileLoader car le fichier n'a pas d'extension .py.
+    from importlib.machinery import SourceFileLoader
     conv_path = os.path.join(QP_ROOT, "bin", "qp_convert_output_to_ezfio")
-    spec = importlib.util.spec_from_file_location("qp_convert_output_to_ezfio", conv_path)
+    loader = SourceFileLoader("qp_convert_output_to_ezfio", conv_path)
+    spec = importlib.util.spec_from_file_location("qp_convert_output_to_ezfio", conv_path, loader=loader)
     conv_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(conv_mod)
 

@@ -13,6 +13,8 @@ Options:
 
 import sys
 import os
+import re
+import tempfile
 from docopt import docopt
 
 try:
@@ -53,17 +55,46 @@ class NoneDict(dict):
     def __missing__(self, key):
         return None
 
+def sanitize_orca_json(filepath):
+    """Return a path to a sanitized copy of the ORCA JSON file.
+
+    ORCA sometimes writes bare NaN/Infinity values that are not valid JSON.
+    Replaces them with null so the JSON parser can proceed.
+    Returns the original path if no substitution is needed, otherwise a
+    NamedTemporaryFile path (caller must delete it).
+    """
+    with open(filepath, 'r', errors='replace') as f:
+        content = f.read()
+    # Replace bare NaN / Infinity (not inside strings) with null
+    sanitized = re.sub(r'\bNaN\b', 'null', content)
+    sanitized = re.sub(r'\bInfinity\b', 'null', sanitized)
+    sanitized = re.sub(r'-Infinity\b', 'null', sanitized)
+    if sanitized == content:
+        return filepath, None
+    tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+    tmp.write(sanitized)
+    tmp.close()
+    return tmp.name, tmp.name
+
+
 def main(FILE, EZFIO_FILE):
     trexio_file = EZFIO_FILE + ".trexio.h5"
 
+    json_input, tmp_path = sanitize_orca_json(FILE)
+
     args = NoneDict()
     args["convert-from"] = True
-    args["--input"] = FILE
+    args["--input"] = json_input
     args["--back_end"] = "hdf5"
     args["--type"] = "orca"
     args["TREXIO_FILE"] = trexio_file
 
-    trexio_run.main(filename=trexio_file, args=args)
+    try:
+        trexio_run.main(filename=trexio_file, args=args)
+    finally:
+        if tmp_path is not None:
+            os.unlink(tmp_path)
+
     write_ezfio(trexio_file, EZFIO_FILE)
 
 

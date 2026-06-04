@@ -295,6 +295,7 @@ END_PROVIDER
 &BEGIN_PROVIDER [ double precision, psi_coef_sorted, (psi_det_size,N_states) ]
 &BEGIN_PROVIDER [ double precision, psi_average_norm_contrib_sorted, (psi_det_size) ]
 &BEGIN_PROVIDER [ integer, psi_det_sorted_order, (psi_det_size) ]
+&BEGIN_PROVIDER [ integer, psi_det_sorted_ordering, (psi_det_size) ]
    implicit none
    BEGIN_DOC
    ! Wave function sorted by determinants contribution to the norm (state-averaged)
@@ -322,6 +323,9 @@ END_PROVIDER
    do i=1,N_det
      psi_det_sorted_order(iorder(i)) = i
    enddo
+   do i=1,N_det
+     psi_det_sorted_ordering(i) = iorder(i)
+   enddo
 
    psi_det_sorted(:,:,N_det+1:psi_det_size) = 0_bit_kind
    psi_coef_sorted(N_det+1:psi_det_size,:) = 0.d0
@@ -334,7 +338,6 @@ END_PROVIDER
 
  BEGIN_PROVIDER [ integer(bit_kind), psi_det_sorted_bit, (N_int,2,psi_det_size) ]
 &BEGIN_PROVIDER [ double precision, psi_coef_sorted_bit, (psi_det_size,N_states) ]
-&BEGIN_PROVIDER [ integer, psi_coef_sorted_bit_order, (psi_det_size) ]
    implicit none
    BEGIN_DOC
    ! Determinants on which we apply $\langle i|H|psi \rangle$ for perturbation.
@@ -344,18 +347,17 @@ END_PROVIDER
    END_DOC
 
    call sort_dets_by_det_search_key(N_det, psi_det, psi_coef, size(psi_coef,1),       &
-       psi_det_sorted_bit, psi_coef_sorted_bit, psi_coef_sorted_bit_order, N_states)
+       psi_det_sorted_bit, psi_coef_sorted_bit, N_states)
 
 END_PROVIDER
 
-subroutine sort_dets_by_det_search_key(Ndet, det_in, coef_in, sze, det_out, coef_out, iorder, N_st)
+subroutine sort_dets_by_det_search_key(Ndet, det_in, coef_in, sze, det_out, coef_out, N_st)
    use bitmasks
    implicit none
    integer, intent(in)            :: Ndet, N_st, sze
    integer(bit_kind), intent(in)  :: det_in  (N_int,2,sze)
    double precision , intent(in)  :: coef_in(sze,N_st)
    integer(bit_kind), intent(out) :: det_out (N_int,2,sze)
-   integer,           intent(out) :: iorder(sze)
    double precision , intent(out) :: coef_out(sze,N_st)
    BEGIN_DOC
    ! Determinants are sorted according to their :c:func:`det_search_key`.
@@ -366,10 +368,11 @@ subroutine sort_dets_by_det_search_key(Ndet, det_in, coef_in, sze, det_out, coef
    !
    END_DOC
    integer                        :: i,j,k
+   integer, allocatable           :: iorder(:)
    integer*8, allocatable         :: bit_tmp(:)
    integer*8, external            :: det_search_key
 
-   allocate ( bit_tmp(Ndet) )
+   allocate ( iorder(Ndet), bit_tmp(Ndet) )
 
    do i=1,Ndet
      iorder(i) = i
@@ -388,7 +391,7 @@ subroutine sort_dets_by_det_search_key(Ndet, det_in, coef_in, sze, det_out, coef
      enddo
    enddo
 
-   deallocate(bit_tmp)
+   deallocate(iorder, bit_tmp)
 
 end
 

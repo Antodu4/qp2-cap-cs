@@ -13,15 +13,15 @@ function run {
   qp set scf_utils thresh_scf 1.e-12
 }
 
-@test "H2O ORCA HF" {
-  run h2o.orca.out h2o.orca.ezfio
-}
-
-@test "HBO ORCA HF" {
+@test "HBO ORCA" {
   run hbo.orca.out hbo.orca.ezfio
 }
 
-@test "[Cu(NH3)4]2+ ORCA HF" {
+@test "H2O ORCA" {
+  run h2o.orca.out h2o.orca.ezfio
+}
+
+@test "[Cu(NH3)4]2+ ORCA" {
   run cu_nh3_4_2plus.orca.out cu_nh3_4_2plus.orca.ezfio
   qp set scf_utils thresh_scf 1.e-10
 }

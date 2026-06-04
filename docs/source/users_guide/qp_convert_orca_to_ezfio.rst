@@ -31,7 +31,6 @@ Usage
 
    The following keywords are necessary for ORCA ::
 
-      ! Print Basis
       %output
         Print[P_Basis] 2
         Print[P_MOs] 1

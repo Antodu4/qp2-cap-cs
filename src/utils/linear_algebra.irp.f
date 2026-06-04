@@ -1326,7 +1326,7 @@ end
 subroutine get_pseudo_inverse(A, LDA, m, n, C, LDC, cutoff)
 
   BEGIN_DOC
-  ! Find C = A^-1: A(m,n), C(n,m)
+  ! Find C = A^-1
   END_DOC
 
   implicit none
@@ -1391,6 +1391,15 @@ subroutine get_pseudo_inverse(A, LDA, m, n, C, LDC, cutoff)
   !$OMP END PARALLEL
 
   call dgemm('T', 'T', n, m, n_svd, 1.d0, Vt, size(Vt,1), U, size(U,1), 0.d0, C, size(C,1))
+
+!  C = 0.d0
+!  do i=1,m
+!    do j=1,n
+!      do k=1,n_svd
+!        C(j,i) = C(j,i) + U(i,k) * D(k) * Vt(k,j)
+!      enddo
+!    enddo
+!  enddo
 
   deallocate(U,D,Vt,work,A_tmp)
 
@@ -1587,6 +1596,35 @@ subroutine nullify_small_elements(m,n,A,LDA,thresh)
     do i=1,m
       if ( (dabs(A(i,j) * amax) < thresh).or.(dabs(A(i,j)) < 1.d-99) ) then
          A(i,j) = 0.d0
+      endif
+    enddo
+  enddo
+
+end
+
+subroutine nullify_small_elements_complex(m,n,A,LDA,thresh)
+  implicit none
+  integer, intent(in) :: m,n,LDA
+  complex*16, intent(inout) :: A(LDA,n)
+  double precision, intent(in) :: thresh
+  integer :: i,j
+  double precision :: amax
+
+  ! Find max value
+  amax = 0.d0
+  do j=1,n
+    do i=1,m
+      amax = max(dabs(dble(A(i,j))), dabs(dimag(A(i,j))), amax)
+    enddo
+  enddo
+  if (amax == 0.d0) return
+  amax = 1.d0/amax
+
+  ! Remove tiny elements
+  do j=1,n
+    do i=1,m
+      if ( (cdabs(A(i,j) *dcmplx(amax,0d0)) < thresh).or.(cdabs(A(i,j)) < 1.d-99) ) then
+         A(i,j) = (0.d0,0d0)
       endif
     enddo
   enddo

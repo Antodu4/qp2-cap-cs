@@ -123,15 +123,28 @@ def main_out(FILE, EZFIO_FILE):
     conv_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(conv_mod)
 
-    # Utilise OrcaFile directement (bypass de getFile() qui ne détecte pas ORCA)
-    try:
-        from resultsFile import OrcaFile
-    except ImportError:
-        print("Error: resultsFile Python library not installed or does not support ORCA text format.")
+    # Cherche la classe ORCA dans conv_mod (qui a fait `from resultsFile import *`)
+    # en essayant plusieurs noms possibles selon la version de resultsFile.
+    OrcaClass = None
+    for name in ('OrcaFile', 'orcaFile', 'Orca', 'OrcaResults'):
+        OrcaClass = getattr(conv_mod, name, None)
+        if OrcaClass is not None:
+            break
+
+    if OrcaClass is None:
+        # Dernière tentative : cherche tout symbole callable avec "orca" dans le nom
+        for name, obj in vars(conv_mod).items():
+            if 'orca' in name.lower() and callable(obj):
+                OrcaClass = obj
+                break
+
+    if OrcaClass is None:
+        print("Error: resultsFile does not have an ORCA text parser.")
+        print("Hint: use ORCA JSON format (option '--print' dans ORCA >= 5).")
         sys.exit(1)
 
     try:
-        res = OrcaFile(FILE)
+        res = OrcaClass(FILE)
     except Exception as e:
         print(f"Error: resultsFile cannot parse '{os.path.basename(FILE)}': {e}")
         sys.exit(1)

@@ -48,6 +48,187 @@ def uint64_to_int64(u):
         result = u
     return result
 
+def _double_fact(n):
+    """Double factorial: (-1)!!=1, 0!!=1, 1!!=1, 2!!=2, 3!!=3, ..."""
+    if n <= 1:
+        return 1
+    return n * _double_fact(n - 2)
+
+
+def _get_cart_to_sphe_T(l):
+    """Return the cart_to_sphe_l matrix as a numpy array.
+
+    T[j,k] is the contribution of the j-th Cartesian AO (generate_xyz /
+    ao_power_index order) to the k-th unnormalized spherical AO
+    (ordering: m=0, +1, -1, +2, -2, ..., +l, -l).
+    Values copied from QP2's Fortran cart_to_sphe_l providers (Horton).
+    Shape: (n_cart, n_sphe).
+    """
+    n_cart = (l + 1) * (l + 2) // 2
+    n_sphe = 2 * l + 1
+    T = np.zeros((n_cart, n_sphe))
+
+    if l == 0:
+        T[0, 0] = 1.0
+
+    elif l == 1:
+        # Cartesian: x(0), y(1), z(2)
+        T[2, 0] = 1.0   # z  → m=0
+        T[0, 1] = 1.0   # x  → m=+1
+        T[1, 2] = 1.0   # y  → m=-1
+
+    elif l == 2:
+        # Cartesian: xx(0),xy(1),xz(2),yy(3),yz(4),zz(5)
+        T[0, 0] = -0.5;                       T[3, 0] = -0.5;                       T[5, 0] = 1.0
+        T[2, 1] = 1.0
+        T[4, 2] = 1.0
+        T[0, 3] = 0.86602540378443864676;     T[3, 3] = -0.86602540378443864676
+        T[1, 4] = 1.0
+
+    elif l == 3:
+        # Cartesian: xxx(0),xxy(1),xxz(2),xyy(3),xyz(4),xzz(5),yyy(6),yyz(7),yzz(8),zzz(9)
+        T[2, 0] = -0.67082039324993690892;    T[7, 0] = -0.67082039324993690892;    T[9, 0] = 1.0
+        T[0, 1] = -0.61237243569579452455;    T[3, 1] = -0.27386127875258305673;    T[5, 1] = 1.0954451150103322269
+        T[1, 2] = -0.27386127875258305673;    T[6, 2] = -0.61237243569579452455;    T[8, 2] = 1.0954451150103322269
+        T[2, 3] = 0.86602540378443864676;     T[7, 3] = -0.86602540378443864676
+        T[4, 4] = 1.0
+        T[0, 5] = 0.790569415042094833;       T[3, 5] = -1.0606601717798212866
+        T[1, 6] = 1.0606601717798212866;      T[6, 6] = -0.790569415042094833
+
+    elif l == 4:
+        # Cartesian: xxxx(0),xxxy(1),xxxz(2),xxyy(3),xxyz(4),xxzz(5),
+        #            xyyy(6),xyyz(7),xyzz(8),xzzz(9),yyyy(10),yyyz(11),yyzz(12),yzzz(13),zzzz(14)
+        T[0,  0] = 0.375;                     T[3,  0] = 0.21957751641341996535
+        T[5,  0] = -0.87831006565367986142;   T[10, 0] = 0.375
+        T[12, 0] = -0.87831006565367986142;   T[14, 0] = 1.0
+        T[2,  1] = -0.89642145700079522998;   T[7,  1] = -0.40089186286863657703;   T[9,  1] = 1.19522860933439364
+        T[4,  2] = -0.40089186286863657703;   T[11, 2] = -0.89642145700079522998;   T[13, 2] = 1.19522860933439364
+        T[0,  3] = -0.5590169943749474241;    T[5,  3] = 0.9819805060619657157
+        T[10, 3] = 0.5590169943749474241;     T[12, 3] = -0.9819805060619657157
+        T[1,  4] = -0.42257712736425828875;   T[6,  4] = -0.42257712736425828875;   T[8,  4] = 1.1338934190276816816
+        T[2,  5] = 0.790569415042094833;      T[7,  5] = -1.0606601717798212866
+        T[4,  6] = 1.0606601717798212866;     T[11, 6] = -0.790569415042094833
+        T[0,  7] = 0.73950997288745200532;    T[3,  7] = -1.2990381056766579701;    T[10, 7] = 0.73950997288745200532
+        T[1,  8] = 1.1180339887498948482;     T[6,  8] = -1.1180339887498948482
+
+    elif l == 5:
+        # Cartesian: 21 functions (xxxxx..zzzzz in ao_power_index order)
+        T[2,  0] = 0.625;                     T[7,  0] = 0.36596252735569994226
+        T[9,  0] = -1.0910894511799619063;    T[16, 0] = 0.625
+        T[18, 0] = -1.0910894511799619063;    T[20, 0] = 1.0
+        T[0,  1] = 0.48412291827592711065;    T[3,  1] = 0.21128856368212914438
+        T[5,  1] = -1.2677313820927748663;    T[10, 1] = 0.16137430609197570355
+        T[12, 1] = -0.56694670951384084082;   T[14, 1] = 1.2909944487358056284
+        T[1,  2] = 0.16137430609197570355;    T[6,  2] = 0.21128856368212914438
+        T[8,  2] = -0.56694670951384084082;   T[15, 2] = 0.48412291827592711065
+        T[17, 2] = -1.2677313820927748663;    T[19, 2] = 1.2909944487358056284
+        T[2,  3] = -0.85391256382996653194;   T[9,  3] = 1.1180339887498948482
+        T[16, 3] = 0.85391256382996653194;    T[18, 3] = -1.1180339887498948482
+        T[4,  4] = -0.6454972243679028142;    T[11, 4] = -0.6454972243679028142;    T[13, 4] = 1.2909944487358056284
+        T[0,  5] = -0.52291251658379721749;   T[3,  5] = 0.22821773229381921394
+        T[5,  5] = 0.91287092917527685576;    T[10, 5] = 0.52291251658379721749;    T[12, 5] = -1.2247448713915890491
+        T[1,  6] = -0.52291251658379721749;   T[6,  6] = -0.22821773229381921394
+        T[8,  6] = 1.2247448713915890491;     T[15, 6] = 0.52291251658379721749;    T[17, 6] = -0.91287092917527685576
+        T[2,  7] = 0.73950997288745200532;    T[7,  7] = -1.2990381056766579701;    T[16, 7] = 0.73950997288745200532
+        T[4,  8] = 1.1180339887498948482;     T[11, 8] = -1.1180339887498948482
+        T[0,  9] = 0.7015607600201140098;     T[3,  9] = -1.5309310892394863114;    T[10, 9] = 1.169267933366856683
+        T[1, 10] = 1.169267933366856683;      T[6, 10] = -1.5309310892394863114;    T[15,10] = 0.7015607600201140098
+
+    elif l == 6:
+        # Cartesian: 28 functions
+        T[0,  0] = -0.3125;                   T[3,  0] = -0.16319780245846672329
+        T[5,  0] = 0.97918681475080033975;    T[10, 0] = -0.16319780245846672329
+        T[12, 0] = 0.57335309036732873772;    T[14, 0] = -1.3055824196677337863
+        T[21, 0] = -0.3125;                   T[23, 0] = 0.97918681475080033975
+        T[25, 0] = -1.3055824196677337863;    T[27, 0] = 1.0
+        T[2,  1] = 0.86356159963469679725;    T[7,  1] = 0.37688918072220452831
+        T[9,  1] = -1.6854996561581052156;    T[16, 1] = 0.28785386654489893242
+        T[18, 1] = -0.75377836144440905662;   T[20, 1] = 1.3816985594155148756
+        T[4,  2] = 0.28785386654489893242;    T[11, 2] = 0.37688918072220452831
+        T[13, 2] = -0.75377836144440905662;   T[22, 2] = 0.86356159963469679725
+        T[24, 2] = -1.6854996561581052156;    T[26, 2] = 1.3816985594155148756
+        T[0,  3] = 0.45285552331841995543;    T[3,  3] = 0.078832027985861408788
+        T[5,  3] = -1.2613124477737825406;    T[10, 3] = -0.078832027985861408788
+        T[14, 3] = 1.2613124477737825406;     T[21, 3] = -0.45285552331841995543
+        T[23, 3] = 1.2613124477737825406;     T[25, 3] = -1.2613124477737825406
+        T[1,  4] = 0.27308215547040717681;    T[6,  4] = 0.26650089544451304287
+        T[8,  4] = -0.95346258924559231545;   T[15, 4] = 0.27308215547040717681
+        T[17, 4] = -0.95346258924559231545;   T[19, 4] = 1.4564381625088382763
+        T[2,  5] = -0.81924646641122153043;   T[7,  5] = 0.35754847096709711829
+        T[9,  5] = 1.0660035817780521715;     T[16, 5] = 0.81924646641122153043
+        T[18, 5] = -1.4301938838683884732
+        T[4,  6] = -0.81924646641122153043;   T[11, 6] = -0.35754847096709711829
+        T[13, 6] = 1.4301938838683884732;     T[22, 6] = 0.81924646641122153043
+        T[24, 6] = -1.0660035817780521715
+        T[0,  7] = -0.49607837082461073572;   T[3,  7] = 0.43178079981734839863
+        T[5,  7] = 0.86356159963469679725;    T[10, 7] = 0.43178079981734839863
+        T[12, 7] = -1.5169496905422946941;    T[21, 7] = -0.49607837082461073572
+        T[23, 7] = 0.86356159963469679725
+        T[1,  8] = -0.59829302641309923139;   T[8,  8] = 1.3055824196677337863
+        T[15, 8] = 0.59829302641309923139;    T[17, 8] = -1.3055824196677337863
+        T[2,  9] = 0.7015607600201140098;     T[7,  9] = -1.5309310892394863114;    T[16, 9] = 1.169267933366856683
+        T[4, 10] = 1.169267933366856683;      T[11,10] = -1.5309310892394863114;    T[22,10] = 0.7015607600201140098
+        T[0, 11] = 0.67169328938139615748;    T[3, 11] = -1.7539019000502850245
+        T[10,11] = 1.7539019000502850245;     T[21,11] = -0.67169328938139615748
+        T[1, 12] = 1.2151388809514737933;     T[6, 12] = -1.9764235376052370825;    T[15,12] = 1.2151388809514737933
+
+    else:
+        raise ValueError(f"cart_to_sphe not implemented for l={l} > 6")
+
+    return T
+
+
+def _compute_T_eff(T, cart_powers):
+    """Compute the normalized transformation T_eff[j,k] = T[j,k] * N_cart[j] / N_sphe[k].
+
+    With this matrix: phi_sphe_norm[k] = sum_j T_eff[j,k] * phi_cart_norm[j],
+    so normalized spherical MO coefficients transform as C_cart = T_eff @ C_sphe.
+    """
+    n_cart, n_sphe = T.shape
+
+    # Angular self-overlap ∝ (2px-1)!! * (2py-1)!! * (2pz-1)!!
+    w_cart = np.array([float(_double_fact(2*p[0]-1) * _double_fact(2*p[1]-1) * _double_fact(2*p[2]-1))
+                       for p in cart_powers])
+
+    # Cross-overlap of unnormalized Cartesian GTOs (angular part only)
+    S = np.zeros((n_cart, n_cart))
+    for j, (px1, py1, pz1) in enumerate(cart_powers):
+        for jp, (px2, py2, pz2) in enumerate(cart_powers):
+            if (px1+px2) % 2 == 0 and (py1+py2) % 2 == 0 and (pz1+pz2) % 2 == 0:
+                S[j, jp] = float(_double_fact(px1+px2-1) * _double_fact(py1+py2-1) * _double_fact(pz1+pz2-1))
+
+    # Self-overlap of the k-th unnormalized spherical GTO: T[:,k]^T @ S @ T[:,k]
+    w_sphe = np.array([T[:, k] @ S @ T[:, k] for k in range(n_sphe)])
+
+    return T * np.sqrt(w_sphe)[np.newaxis, :] / np.sqrt(w_cart)[:, np.newaxis]
+
+
+def _sphe_to_cart_mo_coefs(MoMatrix_sphe, ang_mom_per_shell):
+    """Transform MO coefficient matrix from spherical to Cartesian AO basis.
+
+    Spherical ordering: m = 0, +1, -1, +2, -2, ..., +l, -l  (TREXIO/QP2 convention)
+    Cartesian ordering: generate_xyz (= ao_power_index) order per shell
+
+    Returns (MoMatrix_cart, ao_cart_num).
+    """
+    mo_num = MoMatrix_sphe.shape[1]
+    cart_blocks = []
+    sphe_idx = 0
+
+    for l in ang_mom_per_shell:
+        n_cart = (l + 1) * (l + 2) // 2
+        n_sphe = 2 * l + 1
+        cart_powers = generate_xyz(l)
+        T = _get_cart_to_sphe_T(l)
+        T_eff = _compute_T_eff(T, cart_powers)
+        C_sphe_shell = MoMatrix_sphe[sphe_idx:sphe_idx + n_sphe, :]
+        cart_blocks.append(T_eff @ C_sphe_shell)
+        sphe_idx += n_sphe
+
+    ao_cart_num = sum((l + 1) * (l + 2) // 2 for l in ang_mom_per_shell)
+    return np.vstack(cart_blocks), ao_cart_num
+
+
 def generate_xyz(l):
 
     def create_z(x,y,z):
@@ -264,6 +445,8 @@ def write_ezfio(trexio_filename, filename):
     ao_num = trexio.read_ao_num(trexio_file)
     ezfio.set_ao_basis_ao_num(ao_num)
 
+    sphe_mo_ang_mom = None  # set in the spherical branch; used later for MO transform
+
     if cartesian and shell_num > 0:
         ao_shell    = trexio.read_ao_shell(trexio_file)
         at = [ nucl_index[i]+1 for i in ao_shell ]
@@ -326,6 +509,75 @@ def write_ezfio(trexio_filename, filename):
 
         print("OK")
 
+    elif not cartesian and shell_num > 0:
+        # Spherical basis (ORCA default): expand shells to Cartesian AOs so that
+        # QP2 can compute integrals. ao_cartesian stays False (default), which
+        # tells QP2 to use the cart→sphe transform internally.
+        ao_shell = trexio.read_ao_shell(trexio_file)
+        at = [ nucl_index[i]+1 for i in ao_shell ]
+
+        num_prim0 = [ 0 for i in range(shell_num) ]
+        for i in shell_index:
+            num_prim0[i] += 1
+
+        coef = {}
+        expo = {}
+        for i, c in enumerate(coefficient):
+            idx = shell_index[i]
+            if idx in coef:
+                coef[idx].append(c)
+                expo[idx].append(exponent[i])
+            else:
+                coef[idx] = [c]
+                expo[idx] = [exponent[i]]
+
+        coefficient_cart = []
+        exponent_cart    = []
+        power_x          = []
+        power_y          = []
+        power_z          = []
+        num_prim         = []
+        ao_nucl_cart     = []
+        sphe_mo_ang_mom  = []   # angular momentum per shell, for MO transform
+
+        for i in range(shell_num):
+            l = ang_mom[i]
+            sphe_mo_ang_mom.append(l)
+            for x, y, z in generate_xyz(l):
+                power_x.append(x)
+                power_y.append(y)
+                power_z.append(z)
+                coefficient_cart.append(coef[i])
+                exponent_cart.append(expo[i])
+                num_prim.append(num_prim0[i])
+                ao_nucl_cart.append(nucl_index[i] + 1)
+
+        ao_num_cart = len(coefficient_cart)
+        ezfio.set_ao_basis_ao_num(ao_num_cart)
+        ezfio.set_ao_basis_ao_nucl(ao_nucl_cart)
+        ezfio.set_ao_basis_ao_power(power_x + power_y + power_z)
+        ezfio.set_ao_basis_ao_prim_num(num_prim)
+
+        prim_num_max = max(len(x) for x in coefficient_cart)
+
+        for i in range(ao_num_cart):
+            coefficient_cart[i] += [0.] * (prim_num_max - len(coefficient_cart[i]))
+            exponent_cart[i]    += [0.] * (prim_num_max - len(exponent_cart[i]))
+
+        flat_coef = reduce(lambda x, y: x + y, coefficient_cart, [])
+        flat_expo = reduce(lambda x, y: x + y, exponent_cart,    [])
+
+        coef_out = []
+        expo_out = []
+        for i in range(prim_num_max):
+            for j in range(i, len(flat_coef), prim_num_max):
+                coef_out.append(flat_coef[j])
+                expo_out.append(flat_expo[j])
+
+        ezfio.set_ao_basis_ao_coef(coef_out)
+        ezfio.set_ao_basis_ao_expo(expo_out)
+        print("OK (spherical basis, Cartesian AO storage)")
+
     else:
         print("None: integrals should be also imported using qp run import_trexio_integrals")
 
@@ -365,6 +617,8 @@ def write_ezfio(trexio_filename, filename):
       ezfio.set_mo_basis_mo_num(mo_num)
 
       MoMatrix = trexio.read_mo_coefficient(trexio_file)
+      if sphe_mo_ang_mom is not None:
+          MoMatrix, _ = _sphe_to_cart_mo_coefs(MoMatrix, sphe_mo_ang_mom)
       ezfio.set_mo_basis_mo_coef(MoMatrix)
 
       mo_occ = [ 0. for i in range(mo_num) ]

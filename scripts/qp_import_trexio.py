@@ -200,18 +200,18 @@ def _compute_T_eff(T, cart_powers):
     # Self-overlap of the k-th unnormalized spherical GTO: T[:,k]^T @ S @ T[:,k]
     w_sphe = np.array([T[:, k] @ S @ T[:, k] for k in range(n_sphe)])
 
-    return T * np.sqrt(w_sphe)[np.newaxis, :] / np.sqrt(w_cart)[:, np.newaxis]
+    return T * np.sqrt(w_cart)[:, np.newaxis] / np.sqrt(w_sphe)[np.newaxis, :]
 
 
 def _sphe_to_cart_mo_coefs(MoMatrix_sphe, ang_mom_per_shell):
-    """Transform MO coefficient matrix from spherical to Cartesian AO basis.
+    """Transform MO coefficients from spherical to Cartesian AO basis.
 
-    Spherical ordering: m = 0, +1, -1, +2, -2, ..., +l, -l  (TREXIO/QP2 convention)
+    TREXIO/EZFIO convention: shape (mo_num, ao_num) on both input and output.
+    Spherical ordering: m = 0, +1, -1, +2, -2, ..., +l, -l
     Cartesian ordering: generate_xyz (= ao_power_index) order per shell
 
     Returns (MoMatrix_cart, ao_cart_num).
     """
-    mo_num = MoMatrix_sphe.shape[1]
     cart_blocks = []
     sphe_idx = 0
 
@@ -221,12 +221,12 @@ def _sphe_to_cart_mo_coefs(MoMatrix_sphe, ang_mom_per_shell):
         cart_powers = generate_xyz(l)
         T = _get_cart_to_sphe_T(l)
         T_eff = _compute_T_eff(T, cart_powers)
-        C_sphe_shell = MoMatrix_sphe[sphe_idx:sphe_idx + n_sphe, :]
-        cart_blocks.append(T_eff @ C_sphe_shell)
+        # (mo_num, n_sphe) @ (n_sphe, n_cart) → (mo_num, n_cart)
+        cart_blocks.append(MoMatrix_sphe[:, sphe_idx:sphe_idx + n_sphe] @ T_eff.T)
         sphe_idx += n_sphe
 
     ao_cart_num = sum((l + 1) * (l + 2) // 2 for l in ang_mom_per_shell)
-    return np.vstack(cart_blocks), ao_cart_num
+    return np.hstack(cart_blocks), ao_cart_num
 
 
 def generate_xyz(l):

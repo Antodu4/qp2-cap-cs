@@ -535,7 +535,7 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
               call splash_pq_cs(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat_c, interesting)
               call fill_buffer_cs_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat_c, buf)
             else
-              call splash_pq(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat, interesting)
+              call splash_pq(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat, interesting, hij_cache)
               call fill_buffer_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat, buf)
             end if
           end if

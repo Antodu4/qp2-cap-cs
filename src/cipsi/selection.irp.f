@@ -1511,7 +1511,6 @@ subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs,
   if(sp == 3) then ! AB
     h1 = p(1,1)
     h2 = p(1,2)
-    call get_mo_two_e_integrals_ij(h2,h1,mo_num,hij_cache,mo_integrals_map)
     do p1=1, mo_num
       if(bannedOrb(p1, 1)) cycle
       do p2=1, mo_num
@@ -1535,7 +1534,6 @@ subroutine get_d0(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs,
   else ! AA BB
     p1 = p(1,sp)
     p2 = p(2,sp)
-    call get_mo_two_e_integrals_ij(p2,p1,mo_num,hij_cache,mo_integrals_map)
     do puti=1, mo_num
       if (bannedOrb(puti, sp)) cycle
       do putj=puti+1, mo_num

@@ -941,7 +941,7 @@ single ; do p1=1,mo_num ; enddo ; p2=1            ;       ; .False. ;;
 
 END_TEMPLATE
 
-subroutine splash_pq(mask, sp, det, i_gen, N_sel, bannedOrb, banned, mat, interestingi, hij_cache)
+subroutine splash_pq(mask, sp, det, i_gen, N_sel, bannedOrb, banned, mat, interesting, hij_cache)
   use bitmasks
   implicit none
   BEGIN_DOC
@@ -951,7 +951,7 @@ subroutine splash_pq(mask, sp, det, i_gen, N_sel, bannedOrb, banned, mat, intere
   END_DOC
 
   integer, intent(in)            :: sp, i_gen, N_sel
-  integer, intent(in)            :: interesting(3:N_sel)
+  integer, intent(in)            :: interesting(0:N_sel)
   double precision, intent(in)   :: hij_cache(mo_num, mo_num, 2)
   integer(bit_kind),intent(in)   :: mask(N_int, 2), det(N_int, 2, N_sel)
   logical, intent(inout)         :: bannedOrb(mo_num, 2), banned(mo_num, mo_num, 2)
@@ -1283,7 +1283,7 @@ subroutine get_d1(gen, phasemask, bannedOrb, banned, mat, mask, h, p, sp, coefs,
       do putj=1, hfix-1
         if(lbanned(putj, ma)) cycle
         if(banned(putj, puti,bant)) cycle
-        hij = hij_cache(putj,hfix,1) - hij_cache1(putj,1,hfix)
+        hij = hij_cache(hfix,putj,1) - hij_cache(putj,hfix,1)
         if (hij /= 0.d0) then
           hij = hij * get_phase_bi(phasemask, ma, ma, putj, p1, hfix, p2, N_int)
           !DIR$ LOOP COUNT AVG(4)

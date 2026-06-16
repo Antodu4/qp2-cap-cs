@@ -15,11 +15,11 @@ program pt2
   ! sampling.
   !
   END_DOC
-  PROVIDE mo_two_e_integrals_in_map mo_integrals_cache mo_two_e_integrals_jj_exchange mo_two_e_integrals_jj_anti mo_two_e_integrals_jj big_array_exchange_integrals big_array_coulomb_integrals mo_one_e_integrals
   if (.not. is_zmq_slave) then
      read_wf = .True.
      threshold_generators = 1.d0
      SOFT_TOUCH read_wf threshold_generators
+     PROVIDE mo_two_e_integrals_in_map
      PROVIDE psi_energy
      call run
   else

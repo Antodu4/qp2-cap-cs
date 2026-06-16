@@ -165,7 +165,7 @@ subroutine ZMQ_pt2(E, pt2_data, pt2_data_err, relative_error, N_in)
       state_average_weight(pt2_stoch_istate) = 1.d0
       TOUCH state_average_weight pt2_stoch_istate selection_weight
 
-      PROVIDE nproc pt2_F all_mo_integrals mo_one_e_integrals pt2_w
+      PROVIDE nproc pt2_F mo_two_e_integrals_in_map mo_integrals_cache mo_two_e_integrals_jj_exchange mo_two_e_integrals_jj_anti mo_two_e_integrals_jj big_array_exchange_integrals big_array_coulomb_integrals mo_one_e_integrals pt2_w
       PROVIDE psi_selectors pt2_u pt2_J pt2_R
       call new_parallel_job(zmq_to_qp_run_socket, zmq_socket_pull, 'pt2')
 

@@ -951,7 +951,7 @@ subroutine splash_pq(mask, sp, det, i_gen, N_sel, bannedOrb, banned, mat, intere
   END_DOC
 
   integer, intent(in)            :: sp, i_gen, N_sel
-  integer, intent(in)            :: interesti g(3:N_sel)
+  integer, intent(in)            :: interesting(3:N_sel)
   double precision, intent(in)   :: hij_cache(mo_num, mo_num, 2)
   integer(bit_kind),intent(in)   :: mask(N_int, 2), det(N_int, 2, N_sel)
   logical, intent(inout)         :: bannedOrb(mo_num, 2), banned(mo_num, mo_num, 2)

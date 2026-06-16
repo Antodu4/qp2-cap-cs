@@ -27,11 +27,12 @@ BEGIN_PROVIDER [ double precision, ao_integrals_n_e, (ao_num,ao_num)]
 
   else
 
-    if(use_cgtos) then
+    if(use_cosgtos) then
+      !print *, " use_cosgtos for ao_integrals_n_e ?", use_cosgtos
 
       do j = 1, ao_num
         do i = 1, ao_num
-          ao_integrals_n_e(i,j) = ao_integrals_n_e_cgtos(i,j)
+          ao_integrals_n_e(i,j) = ao_integrals_n_e_cosgtos(i,j)
         enddo
       enddo
 
@@ -609,25 +610,3 @@ double precision function V_r(n,alpha)
 end
 
 
-
-BEGIN_PROVIDER [ double precision, ao_sphe_integrals_n_e, (ao_sphe_num,ao_sphe_num) ]
- implicit none
- BEGIN_DOC
- ! |AO| VneVne  inntegrals matrix in the spherical basis set
- END_DOC
- double precision, allocatable :: tmp(:,:)
- allocate (tmp(ao_sphe_num,ao_num))
-
- call dgemm('N','N',ao_sphe_num,ao_num,ao_num, 1.d0, &
-   ao_cart_to_sphe_inv,size(ao_cart_to_sphe_inv,1), &
-   ao_integrals_n_e,size(ao_integrals_n_e,1), 0.d0, &
-   tmp, size(tmp,1))
-
- call dgemm('N','T',ao_sphe_num,ao_sphe_num,ao_num, 1.d0, &
-   tmp, size(tmp,1), &
-   ao_cart_to_sphe_inv,size(ao_cart_to_sphe_inv,1), 0.d0, &
-   ao_sphe_integrals_n_e,size(ao_sphe_integrals_n_e,1))
-
- deallocate(tmp)
-
-END_PROVIDER

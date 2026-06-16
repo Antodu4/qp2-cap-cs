@@ -23,13 +23,14 @@
   double precision :: A_center(3), B_center(3)
   double precision :: d_a_2,d_2
 
-  if(use_cgtos) then
+  if(use_cosgtos) then
+    !print*, 'use_cosgtos for ao_kinetic_integrals ?', use_cosgtos
 
     do j = 1, ao_num
       do i = 1, ao_num
-        ao_deriv2_x(i,j) = ao_deriv2_cgtos_x(i,j)
-        ao_deriv2_y(i,j) = ao_deriv2_cgtos_y(i,j)
-        ao_deriv2_z(i,j) = ao_deriv2_cgtos_z(i,j)
+        ao_deriv2_x(i,j) = ao_deriv2_cosgtos_x(i,j)
+        ao_deriv2_y(i,j) = ao_deriv2_cosgtos_y(i,j)
+        ao_deriv2_z(i,j) = ao_deriv2_cosgtos_z(i,j)
       enddo
     enddo
 
@@ -91,8 +92,8 @@
         power_A(1) = power_A(1)-2
 
         double precision :: deriv_tmp
-        deriv_tmp = (-2.d0 * alpha * (2.d0 * dble(power_A(1)) +1.d0) * overlap_x0 &
-        +dble(power_A(1)) * (dble(power_A(1))-1.d0) * d_a_2 &
+        deriv_tmp = (-2.d0 * alpha * (2.d0 * power_A(1) +1.d0) * overlap_x0 &
+        +power_A(1) * (power_A(1)-1.d0) * d_a_2 &
         +4.d0 * alpha * alpha * d_2   )*overlap_y0*overlap_z0
 
         ao_deriv2_x(i,j) += c*deriv_tmp
@@ -106,8 +107,8 @@
         call overlap_gaussian_xyz(A_center,B_center,alpha,beta,power_A,power_B,overlap_y,d_2,overlap_z,overlap,dim1)
         power_A(2) = power_A(2)-2
 
-        deriv_tmp = (-2.d0 * alpha * (2.d0 * dble(power_A(2)) +1.d0 ) * overlap_y0 &
-        +dble(power_A(2)) * (dble(power_A(2))-1.d0) * d_a_2 &
+        deriv_tmp = (-2.d0 * alpha * (2.d0 * power_A(2) +1.d0 ) * overlap_y0 &
+        +power_A(2) * (power_A(2)-1.d0) * d_a_2 &
         +4.d0 * alpha * alpha * d_2   )*overlap_x0*overlap_z0
         ao_deriv2_y(i,j) += c*deriv_tmp
 
@@ -121,8 +122,8 @@
         call overlap_gaussian_xyz(A_center,B_center,alpha,beta,power_A,power_B,overlap_y,overlap_z,d_2,overlap,dim1)
         power_A(3) = power_A(3)-2
 
-        deriv_tmp = (-2.d0 * alpha * (2.d0 * dble(power_A(3)) +1.d0 ) * overlap_z0 &
-        +dble(power_A(3)) * (dble(power_A(3))-1.d0) * d_a_2 &
+        deriv_tmp = (-2.d0 * alpha * (2.d0 * power_A(3) +1.d0 ) * overlap_z0 &
+        +power_A(3) * (power_A(3)-1.d0) * d_a_2 &
         +4.d0 * alpha * alpha * d_2   )*overlap_x0*overlap_y0
         ao_deriv2_z(i,j) += c*deriv_tmp
 
@@ -190,25 +191,3 @@ BEGIN_PROVIDER [double precision, ao_kinetic_integrals_imag, (ao_num,ao_num)]
   endif
 END_PROVIDER
 
-
-BEGIN_PROVIDER [ double precision, ao_sphe_kinetic_integrals, (ao_sphe_num,ao_sphe_num) ]
- implicit none
- BEGIN_DOC
- ! |AO| kinetic inntegrals matrix in the spherical basis set
- END_DOC
- double precision, allocatable :: tmp(:,:)
- allocate (tmp(ao_sphe_num,ao_num))
-
- call dgemm('N','N',ao_sphe_num,ao_num,ao_num, 1.d0, &
-   ao_cart_to_sphe_inv,size(ao_cart_to_sphe_inv,1), &
-   ao_kinetic_integrals,size(ao_kinetic_integrals,1), 0.d0, &
-   tmp, size(tmp,1))
-
- call dgemm('N','T',ao_sphe_num,ao_sphe_num,ao_num, 1.d0, &
-   tmp, size(tmp,1), &
-   ao_cart_to_sphe_inv,size(ao_cart_to_sphe_inv,1), 0.d0, &
-   ao_sphe_kinetic_integrals,size(ao_sphe_kinetic_integrals,1))
-
- deallocate(tmp)
-
-END_PROVIDER

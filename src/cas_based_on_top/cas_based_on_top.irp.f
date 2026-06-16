@@ -1,4 +1,4 @@
-program cas_based_on_top
+program cas_based_on_top_density
   implicit none
   BEGIN_DOC
 ! TODO : Small example to use the different quantities in this plugin
@@ -16,5 +16,4 @@ end
 subroutine routine
  implicit none
  provide total_cas_on_top_density
- provide average_on_top
 end

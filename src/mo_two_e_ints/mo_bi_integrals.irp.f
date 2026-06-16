@@ -70,9 +70,6 @@ BEGIN_PROVIDER [ logical, mo_two_e_integrals_in_map ]
     else
       call add_integrals_to_map(full_ijkl_bitmask_4)
     endif
-
-    integer*8                      :: get_mo_map_size, mo_map_size
-    mo_map_size = get_mo_map_size()
     double precision, external     :: map_mb
     print*,'Molecular integrals provided:'
     print*,' Size of MO map           ', map_mb(mo_integrals_map) ,'MB'
@@ -81,6 +78,9 @@ BEGIN_PROVIDER [ logical, mo_two_e_integrals_in_map ]
 
   call wall_time(wall_2)
   call cpu_time(cpu_2)
+
+  integer*8                      :: get_mo_map_size, mo_map_size
+  mo_map_size = get_mo_map_size()
 
   print*,' cpu  time :',cpu_2 - cpu_1, 's'
   print*,' wall time :',wall_2 - wall_1, 's  ( x ', (cpu_2-cpu_1)/(wall_2-wall_1), ')'
@@ -113,12 +113,10 @@ subroutine four_idx_dgemm
   allocate (a1(ao_num,ao_num,ao_num,ao_num))
 
   print *, 'Getting AOs'
-  call get_ao_two_e_integrals(1,1,1,ao_num,a1(1,1,1,1))
-  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(q,r,s) COLLAPSE(2)
+  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(q,r,s)
   do s=1,ao_num
     do r=1,ao_num
       do q=1,ao_num
-        a1(:,q,r,s) = 0.d0
         call get_ao_two_e_integrals(q,r,s,ao_num,a1(1,q,r,s))
       enddo
     enddo

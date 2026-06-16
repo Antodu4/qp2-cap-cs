@@ -40,13 +40,13 @@ EZFIO parameters
  
 .. option:: no_core_density
  
-    If [no_core_density] then all elements of the density matrix involving at least one orbital set as core are set to zero. The default is False in order to take all the density.
+    if [no_core_dm] then all elements of the density matrix involving at least one orbital set as core are set to zero
  
-    Default: False
+    Default: full_density
  
 .. option:: normalize_dm
  
-    Type of density. If .True., then you normalize the no_core_dm to elec_alpha_num - n_core_orb  and elec_beta_num - n_core_orb
+    if .True., then you normalize the no_core_dm to elec_alpha_num - n_core_orb  and elec_beta_num - n_core_orb
  
     Default: True
  

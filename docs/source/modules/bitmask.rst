@@ -35,42 +35,6 @@ For an example of how to use the bitmaks, see the file :file:`example.irp.f`.
  
  
  
-EZFIO parameters 
----------------- 
- 
-.. option:: n_act_orb
- 
-    Number of active |MOs|
- 
- 
-.. option:: do_ormas
- 
-    if |true| restrict selection based on ORMAS rules
- 
-    Default: false
- 
-.. option:: ormas_n_space
- 
-    Number of active spaces
- 
-    Default: 1
- 
-.. option:: ormas_mstart
- 
-    starting orb for each ORMAS space
- 
- 
-.. option:: ormas_min_e
- 
-    min number of electrons in each ORMAS space
- 
- 
-.. option:: ormas_max_e
- 
-    max number of electrons in each ORMAS space
- 
- 
- 
 Providers 
 --------- 
  
@@ -81,18 +45,103 @@ Providers
 
     .. code:: fortran
 
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
         integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    Bitmask identifying the active MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_act`
-       * :c:data:`n_act_orb`
+       * :c:data:`dim_list_core_orb`
+       * :c:data:`mo_class`
+       * :c:data:`mo_num`
+       * :c:data:`n_core_orb`
+       * :c:data:`n_int`
+
+    Needed by:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
+
+ 
+.. c:var:: cas_bitmask
+
+
+    File : :file:`bitmask/bitmasks.irp.f`
+
+    .. code:: fortran
+
+        integer(bit_kind), allocatable	:: cas_bitmask	(N_int,2,N_cas_bitmask)
+
+
+    Bitmasks for CAS reference determinants. (N_int, alpha/beta, CAS reference)
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`ezfio_filename`
+       * :c:data:`full_ijkl_bitmask`
+       * :c:data:`generators_bitmask_restart`
+       * :c:data:`hf_bitmask`
+       * :c:data:`mpi_master`
+       * :c:data:`n_cas_bitmask`
+       * :c:data:`n_generators_bitmask`
        * :c:data:`n_int`
 
     Needed by:
@@ -101,13 +150,8 @@ Providers
        :columns: 3
 
        * :c:data:`closed_shell_ref_bitmask`
-       * :c:data:`n_det_generators`
        * :c:data:`psi_cas`
-       * :c:data:`psi_det_generators`
-       * :c:data:`reunion_of_act_virt_bitmask`
        * :c:data:`reunion_of_bitmask`
-       * :c:data:`reunion_of_core_inact_act_bitmask`
-       * :c:data:`reunion_of_inact_act_bitmask`
 
  
 .. c:var:: closed_shell_ref_bitmask
@@ -126,7 +170,7 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
+       * :c:data:`cas_bitmask`
        * :c:data:`n_int`
        * :c:data:`ref_bitmask`
 
@@ -139,17 +183,53 @@ Providers
 
     .. code:: fortran
 
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
         integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    Bitmask identifying the core MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_core`
+       * :c:data:`dim_list_core_orb`
+       * :c:data:`mo_class`
+       * :c:data:`mo_num`
        * :c:data:`n_core_orb`
        * :c:data:`n_int`
 
@@ -158,8 +238,22 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
        * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
        * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: core_inact_act_bitmask_4
@@ -181,6 +275,12 @@ Providers
        * :c:data:`n_int`
        * :c:data:`reunion_of_core_inact_act_bitmask`
 
+    Needed by:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`mo_two_e_integrals_in_map`
 
  
 .. c:var:: core_inact_virt_bitmask
@@ -201,10 +301,8 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`core_bitmask`
-       * :c:data:`inact_bitmask`
+       * :c:data:`list_inact`
        * :c:data:`n_int`
-       * :c:data:`virt_bitmask`
 
 
  
@@ -215,20 +313,77 @@ Providers
 
     .. code:: fortran
 
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
         integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    Bitmask identifying the deleted MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_del`
-       * :c:data:`n_del_orb`
+       * :c:data:`dim_list_core_orb`
+       * :c:data:`mo_class`
+       * :c:data:`mo_num`
+       * :c:data:`n_core_orb`
        * :c:data:`n_int`
 
+    Needed by:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: dim_list_act_orb
@@ -238,66 +393,14 @@ Providers
 
     .. code:: fortran
 
-        integer	:: dim_list_act_orb	
-
-
-    dimensions for the allocation of list_act.
-    it is at least 1
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`n_act_orb`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`list_act`
-
- 
-.. c:var:: dim_list_core_inact_orb
-
-
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
-
-    .. code:: fortran
-
-        integer	:: dim_list_core_inact_orb	
-
-
-    dimensions for the allocation of list_core.
-    it is at least 1
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`n_core_inact_orb`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`list_core_inact`
-
- 
-.. c:var:: dim_list_core_orb
-
-
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
-
-    .. code:: fortran
-
         integer	:: dim_list_core_orb	
+        integer	:: dim_list_inact_orb	
+        integer	:: dim_list_virt_orb	
+        integer	:: dim_list_act_orb	
+        integer	:: dim_list_del_orb	
 
 
-    dimensions for the allocation of list_core.
+    dimensions for the allocation of list_inact, list_virt, list_core and list_act
     it is at least 1
 
     Needs:
@@ -312,7 +415,39 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_core`
+       * :c:data:`list_inact`
+
+ 
+.. c:var:: dim_list_core_orb
+
+
+    File : :file:`bitmask/core_inact_act_virt.irp.f`
+
+    .. code:: fortran
+
+        integer	:: dim_list_core_orb	
+        integer	:: dim_list_inact_orb	
+        integer	:: dim_list_virt_orb	
+        integer	:: dim_list_act_orb	
+        integer	:: dim_list_del_orb	
+
+
+    dimensions for the allocation of list_inact, list_virt, list_core and list_act
+    it is at least 1
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`n_core_orb`
+
+    Needed by:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`list_inact`
 
  
 .. c:var:: dim_list_del_orb
@@ -322,10 +457,14 @@ Providers
 
     .. code:: fortran
 
+        integer	:: dim_list_core_orb	
+        integer	:: dim_list_inact_orb	
+        integer	:: dim_list_virt_orb	
+        integer	:: dim_list_act_orb	
         integer	:: dim_list_del_orb	
 
 
-    dimensions for the allocation of list_del.
+    dimensions for the allocation of list_inact, list_virt, list_core and list_act
     it is at least 1
 
     Needs:
@@ -333,14 +472,14 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`n_del_orb`
+       * :c:data:`n_core_orb`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_del`
+       * :c:data:`list_inact`
 
  
 .. c:var:: dim_list_inact_orb
@@ -350,10 +489,14 @@ Providers
 
     .. code:: fortran
 
+        integer	:: dim_list_core_orb	
         integer	:: dim_list_inact_orb	
+        integer	:: dim_list_virt_orb	
+        integer	:: dim_list_act_orb	
+        integer	:: dim_list_del_orb	
 
 
-    dimensions for the allocation of list_inact.
+    dimensions for the allocation of list_inact, list_virt, list_core and list_act
     it is at least 1
 
     Needs:
@@ -361,7 +504,7 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`n_inact_orb`
+       * :c:data:`n_core_orb`
 
     Needed by:
 
@@ -378,10 +521,14 @@ Providers
 
     .. code:: fortran
 
+        integer	:: dim_list_core_orb	
+        integer	:: dim_list_inact_orb	
         integer	:: dim_list_virt_orb	
+        integer	:: dim_list_act_orb	
+        integer	:: dim_list_del_orb	
 
 
-    dimensions for the allocation of list_virt.
+    dimensions for the allocation of list_inact, list_virt, list_core and list_act
     it is at least 1
 
     Needs:
@@ -389,14 +536,14 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`n_virt_orb`
+       * :c:data:`n_core_orb`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_virt`
+       * :c:data:`list_inact`
 
  
 .. c:var:: full_ijkl_bitmask
@@ -416,6 +563,7 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`mo_class`
        * :c:data:`mo_num`
        * :c:data:`n_int`
 
@@ -424,10 +572,12 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`cas_bitmask`
        * :c:data:`fock_operator_closed_shell_ref_bitmask`
        * :c:data:`fock_wee_closed_shell`
        * :c:data:`full_ijkl_bitmask_4`
        * :c:data:`generators_bitmask`
+       * :c:data:`generators_bitmask_restart`
 
  
 .. c:var:: full_ijkl_bitmask_4
@@ -465,7 +615,7 @@ Providers
 
     .. code:: fortran
 
-        integer(bit_kind), allocatable	:: generators_bitmask	(N_int,2,6)
+        integer(bit_kind), allocatable	:: generators_bitmask	(N_int,2,6,N_generators_bitmask)
 
 
     Bitmasks for generator determinants.
@@ -493,10 +643,58 @@ Providers
 
        * :c:data:`ezfio_filename`
        * :c:data:`full_ijkl_bitmask`
+       * :c:data:`mpi_master`
+       * :c:data:`n_generators_bitmask`
        * :c:data:`n_int`
-       * :c:data:`reunion_of_act_virt_bitmask`
-       * :c:data:`reunion_of_inact_act_bitmask`
 
+
+ 
+.. c:var:: generators_bitmask_restart
+
+
+    File : :file:`bitmask/bitmasks.irp.f`
+
+    .. code:: fortran
+
+        integer(bit_kind), allocatable	:: generators_bitmask_restart	(N_int,2,6,N_generators_bitmask_restart)
+
+
+    Bitmasks for generator determinants.
+    (N_int, alpha/beta, hole/particle, generator).
+    
+    3rd index is :
+    
+    * 1 : hole     for single exc
+    
+    * 2 : particle for single exc
+    
+    * 3 : hole     for 1st exc of double
+    
+    * 4 : particle for 1st exc of double
+    
+    * 5 : hole     for 2nd exc of double
+    
+    * 6 : particle for 2nd exc of double
+    
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`ezfio_filename`
+       * :c:data:`full_ijkl_bitmask`
+       * :c:data:`mpi_master`
+       * :c:data:`n_generators_bitmask`
+       * :c:data:`n_generators_bitmask_restart`
+       * :c:data:`n_int`
+
+    Needed by:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`cas_bitmask`
 
  
 .. c:var:: hf_bitmask
@@ -525,6 +723,8 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`cas_bitmask`
+       * :c:data:`degree_max_generators`
        * :c:data:`double_exc_bitmask`
        * :c:data:`max_degree_exc`
        * :c:data:`psi_cas`
@@ -534,6 +734,20 @@ Providers
        * :c:data:`unpaired_alpha_electrons`
 
  
+.. c:var:: i_bitmask_gen
+
+
+    File : :file:`bitmask/bitmasks.irp.f`
+
+    .. code:: fortran
+
+        integer	:: i_bitmask_gen	
+
+
+    Current bitmask for the generators
+
+
+ 
 .. c:var:: inact_bitmask
 
 
@@ -541,18 +755,54 @@ Providers
 
     .. code:: fortran
 
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
         integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    Bitmask identifying the  inactive MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_inact`
-       * :c:data:`n_inact_orb`
+       * :c:data:`dim_list_core_orb`
+       * :c:data:`mo_class`
+       * :c:data:`mo_num`
+       * :c:data:`n_core_orb`
        * :c:data:`n_int`
 
     Needed by:
@@ -560,10 +810,22 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
        * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
        * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
        * :c:data:`reunion_of_core_inact_bitmask`
-       * :c:data:`reunion_of_inact_act_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: inact_virt_bitmask
@@ -584,10 +846,8 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`core_bitmask`
-       * :c:data:`inact_bitmask`
+       * :c:data:`list_inact`
        * :c:data:`n_int`
-       * :c:data:`virt_bitmask`
 
 
  
@@ -626,187 +886,44 @@ Providers
 
     .. code:: fortran
 
-        integer, allocatable	:: list_act	(dim_list_act_orb)
-        integer, allocatable	:: list_act_reverse	(mo_num)
-
-
-    List of MO indices which are in the active.
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`dim_list_act_orb`
-       * :c:data:`mo_class`
-       * :c:data:`mo_num`
-       * :c:data:`n_act_orb`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`act_2_rdm_aa_mo`
-       * :c:data:`act_2_rdm_ab_mo`
-       * :c:data:`act_2_rdm_bb_mo`
-       * :c:data:`act_2_rdm_spin_trace_mo`
-       * :c:data:`act_2_rdm_trans_spin_trace_mo`
-       * :c:data:`act_bitmask`
-       * :c:data:`bielec_pqxx_array`
-       * :c:data:`bielec_pqxx_no_array`
-       * :c:data:`bielec_pxxq_array`
-       * :c:data:`bielec_pxxq_no_array`
-       * :c:data:`bielecci`
-       * :c:data:`bielecci_no`
-       * :c:data:`cholesky_no_1_idx_transp`
-       * :c:data:`cholesky_no_2_idx_transp`
-       * :c:data:`cholesky_no_total_transp`
-       * :c:data:`core_fock_operator`
-       * :c:data:`core_fock_operator_erf`
-       * :c:data:`d0tu`
-       * :c:data:`d0tu_alpha_ao`
-       * :c:data:`eigenvectors_fock_matrix_mo`
-       * :c:data:`etwo`
-       * :c:data:`excit`
-       * :c:data:`fapq`
-       * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`natorbsci_mos`
-       * :c:data:`occnum`
-       * :c:data:`one_ints_no`
-       * :c:data:`p0tuvx_peter`
-       * :c:data:`state_av_act_2_rdm_aa_mo`
-       * :c:data:`state_av_act_2_rdm_ab_mo`
-       * :c:data:`state_av_act_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
-
- 
-.. c:var:: list_act_reverse
-
-
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: list_act	(dim_list_act_orb)
-        integer, allocatable	:: list_act_reverse	(mo_num)
-
-
-    List of MO indices which are in the active.
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`dim_list_act_orb`
-       * :c:data:`mo_class`
-       * :c:data:`mo_num`
-       * :c:data:`n_act_orb`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`act_2_rdm_aa_mo`
-       * :c:data:`act_2_rdm_ab_mo`
-       * :c:data:`act_2_rdm_bb_mo`
-       * :c:data:`act_2_rdm_spin_trace_mo`
-       * :c:data:`act_2_rdm_trans_spin_trace_mo`
-       * :c:data:`act_bitmask`
-       * :c:data:`bielec_pqxx_array`
-       * :c:data:`bielec_pqxx_no_array`
-       * :c:data:`bielec_pxxq_array`
-       * :c:data:`bielec_pxxq_no_array`
-       * :c:data:`bielecci`
-       * :c:data:`bielecci_no`
-       * :c:data:`cholesky_no_1_idx_transp`
-       * :c:data:`cholesky_no_2_idx_transp`
-       * :c:data:`cholesky_no_total_transp`
-       * :c:data:`core_fock_operator`
-       * :c:data:`core_fock_operator_erf`
-       * :c:data:`d0tu`
-       * :c:data:`d0tu_alpha_ao`
-       * :c:data:`eigenvectors_fock_matrix_mo`
-       * :c:data:`etwo`
-       * :c:data:`excit`
-       * :c:data:`fapq`
-       * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`natorbsci_mos`
-       * :c:data:`occnum`
-       * :c:data:`one_ints_no`
-       * :c:data:`p0tuvx_peter`
-       * :c:data:`state_av_act_2_rdm_aa_mo`
-       * :c:data:`state_av_act_2_rdm_ab_mo`
-       * :c:data:`state_av_act_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
-
- 
-.. c:var:: list_all_but_del_orb
-
-
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: list_all_but_del_orb	(n_all_but_del_orb)
-
-
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`mo_class`
-       * :c:data:`mo_num`
-       * :c:data:`n_all_but_del_orb`
-
-
- 
-.. c:var:: list_core
-
-
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
-
-    .. code:: fortran
-
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
         integer, allocatable	:: list_core	(dim_list_core_orb)
         integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of MO indices which are in the core.
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
@@ -817,78 +934,189 @@ Providers
        * :c:data:`mo_class`
        * :c:data:`mo_num`
        * :c:data:`n_core_orb`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`core_bitmask`
        * :c:data:`core_energy`
        * :c:data:`core_energy_erf`
        * :c:data:`core_fock_operator`
        * :c:data:`core_fock_operator_erf`
        * :c:data:`eigenvectors_fock_matrix_mo`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`one_e_dm_mo_alpha_for_dft`
-       * :c:data:`one_e_dm_mo_alpha_for_dft_no_core`
-       * :c:data:`one_e_dm_mo_beta_for_dft`
-       * :c:data:`one_e_dm_mo_beta_for_dft_no_core`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
-.. c:var:: list_core_inact
+.. c:var:: list_act_reverse
 
 
     File : :file:`bitmask/core_inact_act_virt.irp.f`
 
     .. code:: fortran
 
-        integer, allocatable	:: list_core_inact	(dim_list_core_inact_orb)
-        integer, allocatable	:: list_core_inact_reverse	(mo_num)
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of indices of the core and inactive MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`dim_list_core_inact_orb`
+       * :c:data:`dim_list_core_orb`
+       * :c:data:`mo_class`
        * :c:data:`mo_num`
-       * :c:data:`n_core_inact_orb`
+       * :c:data:`n_core_orb`
        * :c:data:`n_int`
-       * :c:data:`reunion_of_core_inact_bitmask`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`bielec_pqxx_array`
-       * :c:data:`bielec_pxxq_array`
-       * :c:data:`cholesky_no_total_transp`
-       * :c:data:`d0tu_alpha_ao`
-       * :c:data:`etwo`
-       * :c:data:`excit`
-       * :c:data:`fipq`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`occnum`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
+
+ 
+.. c:var:: list_core
+
+
+    File : :file:`bitmask/core_inact_act_virt.irp.f`
+
+    .. code:: fortran
+
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
+
+
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`dim_list_core_orb`
+       * :c:data:`mo_class`
+       * :c:data:`mo_num`
+       * :c:data:`n_core_orb`
+       * :c:data:`n_int`
+
+    Needed by:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: list_core_inact_act
@@ -899,30 +1127,21 @@ Providers
     .. code:: fortran
 
         integer, allocatable	:: list_core_inact_act	(n_core_inact_act_orb)
-        integer, allocatable	:: list_core_inact_act_reverse	(mo_num)
+        integer, allocatable	:: list_core_inact_act_reverse	(n_core_inact_act_orb)
 
 
-    List of indices of the core inactive and active MOs
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`mo_num`
+       * :c:data:`list_inact`
        * :c:data:`n_core_inact_act_orb`
+       * :c:data:`n_core_orb`
        * :c:data:`n_int`
        * :c:data:`reunion_of_core_inact_act_bitmask`
 
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`etwo`
-       * :c:data:`fapq`
-       * :c:data:`fipq`
-       * :c:data:`two_e_dm_mo`
 
  
 .. c:var:: list_core_inact_act_reverse
@@ -933,77 +1152,21 @@ Providers
     .. code:: fortran
 
         integer, allocatable	:: list_core_inact_act	(n_core_inact_act_orb)
-        integer, allocatable	:: list_core_inact_act_reverse	(mo_num)
+        integer, allocatable	:: list_core_inact_act_reverse	(n_core_inact_act_orb)
 
 
-    List of indices of the core inactive and active MOs
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`mo_num`
+       * :c:data:`list_inact`
        * :c:data:`n_core_inact_act_orb`
+       * :c:data:`n_core_orb`
        * :c:data:`n_int`
        * :c:data:`reunion_of_core_inact_act_bitmask`
 
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`etwo`
-       * :c:data:`fapq`
-       * :c:data:`fipq`
-       * :c:data:`two_e_dm_mo`
-
- 
-.. c:var:: list_core_inact_reverse
-
-
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: list_core_inact	(dim_list_core_inact_orb)
-        integer, allocatable	:: list_core_inact_reverse	(mo_num)
-
-
-    List of indices of the core and inactive MOs
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`dim_list_core_inact_orb`
-       * :c:data:`mo_num`
-       * :c:data:`n_core_inact_orb`
-       * :c:data:`n_int`
-       * :c:data:`reunion_of_core_inact_bitmask`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`bielec_pqxx_array`
-       * :c:data:`bielec_pxxq_array`
-       * :c:data:`cholesky_no_total_transp`
-       * :c:data:`d0tu_alpha_ao`
-       * :c:data:`etwo`
-       * :c:data:`excit`
-       * :c:data:`fipq`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`occnum`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
 
  
 .. c:var:: list_core_reverse
@@ -1013,11 +1176,44 @@ Providers
 
     .. code:: fortran
 
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
         integer, allocatable	:: list_core	(dim_list_core_orb)
         integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of MO indices which are in the core.
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
@@ -1028,31 +1224,29 @@ Providers
        * :c:data:`mo_class`
        * :c:data:`mo_num`
        * :c:data:`n_core_orb`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`core_bitmask`
        * :c:data:`core_energy`
        * :c:data:`core_energy_erf`
        * :c:data:`core_fock_operator`
        * :c:data:`core_fock_operator_erf`
        * :c:data:`eigenvectors_fock_matrix_mo`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`one_e_dm_mo_alpha_for_dft`
-       * :c:data:`one_e_dm_mo_alpha_for_dft_no_core`
-       * :c:data:`one_e_dm_mo_beta_for_dft`
-       * :c:data:`one_e_dm_mo_beta_for_dft_no_core`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: list_del
@@ -1062,28 +1256,77 @@ Providers
 
     .. code:: fortran
 
-        integer, allocatable	:: list_del	(dim_list_del_orb)
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
         integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of MO indices which are deleted.
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`dim_list_del_orb`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`mo_class`
        * :c:data:`mo_num`
-       * :c:data:`n_del_orb`
+       * :c:data:`n_core_orb`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`del_bitmask`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: list_del_reverse
@@ -1093,28 +1336,77 @@ Providers
 
     .. code:: fortran
 
-        integer, allocatable	:: list_del	(dim_list_del_orb)
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
         integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of MO indices which are deleted.
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`dim_list_del_orb`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`mo_class`
        * :c:data:`mo_num`
-       * :c:data:`n_del_orb`
+       * :c:data:`n_core_orb`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`del_bitmask`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: list_inact
@@ -1125,37 +1417,76 @@ Providers
     .. code:: fortran
 
         integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
         integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of MO indices which are inactive.
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`dim_list_inact_orb`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`mo_class`
        * :c:data:`mo_num`
-       * :c:data:`n_inact_orb`
+       * :c:data:`n_core_orb`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
        * :c:data:`eigenvectors_fock_matrix_mo`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`inact_bitmask`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: list_inact_act
@@ -1166,45 +1497,17 @@ Providers
     .. code:: fortran
 
         integer, allocatable	:: list_inact_act	(n_inact_act_orb)
-        integer, allocatable	:: list_inact_act_reverse	(mo_num)
 
 
-    List of indices of the inactive and active MOs
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`mo_num`
+       * :c:data:`list_inact`
+       * :c:data:`n_core_orb`
        * :c:data:`n_inact_act_orb`
-       * :c:data:`n_int`
-       * :c:data:`reunion_of_inact_act_bitmask`
-
-
- 
-.. c:var:: list_inact_act_reverse
-
-
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: list_inact_act	(n_inact_act_orb)
-        integer, allocatable	:: list_inact_act_reverse	(mo_num)
-
-
-    List of indices of the inactive and active MOs
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`mo_num`
-       * :c:data:`n_inact_act_orb`
-       * :c:data:`n_int`
-       * :c:data:`reunion_of_inact_act_bitmask`
 
 
  
@@ -1216,37 +1519,76 @@ Providers
     .. code:: fortran
 
         integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
         integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of MO indices which are inactive.
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`dim_list_inact_orb`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`mo_class`
        * :c:data:`mo_num`
-       * :c:data:`n_inact_orb`
+       * :c:data:`n_core_orb`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
        * :c:data:`eigenvectors_fock_matrix_mo`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`inact_bitmask`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: list_virt
@@ -1256,40 +1598,77 @@ Providers
 
     .. code:: fortran
 
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
         integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
         integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of MO indices which are virtual
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`dim_list_virt_orb`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`mo_class`
        * :c:data:`mo_num`
-       * :c:data:`n_virt_orb`
+       * :c:data:`n_core_orb`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`cholesky_no_total_transp`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
        * :c:data:`eigenvectors_fock_matrix_mo`
-       * :c:data:`excit`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
-       * :c:data:`virt_bitmask`
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: list_virt_reverse
@@ -1299,64 +1678,77 @@ Providers
 
     .. code:: fortran
 
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
         integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
         integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    List of MO indices which are virtual
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`dim_list_virt_orb`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`mo_class`
        * :c:data:`mo_num`
-       * :c:data:`n_virt_orb`
+       * :c:data:`n_core_orb`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`cholesky_no_total_transp`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
        * :c:data:`eigenvectors_fock_matrix_mo`
-       * :c:data:`excit`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
-       * :c:data:`virt_bitmask`
-
- 
-.. c:var:: mo_coef_begin_iteration
-
-
-    File : :file:`bitmask/track_orb.irp.f`
-
-    .. code:: fortran
-
-        double precision, allocatable	:: mo_coef_begin_iteration	(ao_num,mo_num)
-
-
-    Void provider to store the coefficients of the |MO| basis at the beginning of the SCF iteration
-    
-    Useful to track some orbitals
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ao_num`
-       * :c:data:`mo_num`
-
+       * :c:data:`inact_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`virt_bitmask_4`
 
  
 .. c:var:: mpi_bit_kind
@@ -1380,10 +1772,34 @@ Providers
 
     .. code:: fortran
 
+        integer	:: n_core_orb	
+        integer	:: n_inact_orb	
         integer	:: n_act_orb	
+        integer	:: n_virt_orb	
+        integer	:: n_del_orb	
 
 
-    Number of active MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
@@ -1399,91 +1815,53 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_2_rdm_aa_mo`
-       * :c:data:`act_2_rdm_ab_mo`
-       * :c:data:`act_2_rdm_bb_mo`
-       * :c:data:`act_2_rdm_spin_trace_mo`
-       * :c:data:`act_2_rdm_trans_spin_trace_mo`
-       * :c:data:`act_bitmask`
-       * :c:data:`bielec_pqxx_array`
-       * :c:data:`bielec_pqxx_no_array`
-       * :c:data:`bielec_pxxq_array`
-       * :c:data:`bielec_pxxq_no_array`
-       * :c:data:`bielecci`
-       * :c:data:`bielecci_no`
-       * :c:data:`cholesky_no_1_idx_transp`
-       * :c:data:`cholesky_no_2_idx_transp`
-       * :c:data:`cholesky_no_total_transp`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
        * :c:data:`core_fock_operator`
        * :c:data:`core_fock_operator_erf`
-       * :c:data:`d0tu`
-       * :c:data:`d0tu_alpha_ao`
-       * :c:data:`dim_list_act_orb`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`eigenvectors_fock_matrix_mo`
-       * :c:data:`etwo`
-       * :c:data:`excit`
-       * :c:data:`fapq`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`list_act`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`n_c_a_prov`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
        * :c:data:`n_core_inact_act_orb`
+       * :c:data:`n_core_orb_allocate`
        * :c:data:`n_inact_act_orb`
-       * :c:data:`natorbsci`
-       * :c:data:`natorbsci_mos`
-       * :c:data:`nmonoex`
-       * :c:data:`nsomomax`
-       * :c:data:`occnum`
-       * :c:data:`one_ints_no`
-       * :c:data:`p0tuvx`
-       * :c:data:`p0tuvx_no`
-       * :c:data:`p0tuvx_peter`
-       * :c:data:`state_av_act_2_rdm_aa_mo`
-       * :c:data:`state_av_act_2_rdm_ab_mo`
-       * :c:data:`state_av_act_2_rdm_bb_mo`
-       * :c:data:`state_av_act_2_rdm_spin_trace_mo`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
+       * :c:data:`n_inact_orb_allocate`
+       * :c:data:`n_virt_orb_allocate`
+       * :c:data:`pt2_f`
 
  
-.. c:var:: n_all_but_del_orb
+.. c:var:: n_cas_bitmask
 
 
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
+    File : :file:`bitmask/bitmasks.irp.f`
 
     .. code:: fortran
 
-        integer	:: n_all_but_del_orb	
+        integer	:: n_cas_bitmask	
 
 
+    Number of bitmasks for CAS
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`mo_class`
-       * :c:data:`mo_num`
+       * :c:data:`ezfio_filename`
+       * :c:data:`mpi_master`
+       * :c:data:`n_int`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_all_but_del_orb`
+       * :c:data:`cas_bitmask`
+       * :c:data:`psi_cas`
 
  
 .. c:var:: n_core_inact_act_orb
@@ -1496,49 +1874,32 @@ Providers
         integer	:: n_core_inact_act_orb	
 
 
-    Number of core inactive and active MOs
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`n_act_orb`
        * :c:data:`n_core_orb`
-       * :c:data:`n_inact_orb`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`bielec_pqxx_array`
-       * :c:data:`bielec_pqxx_no_array`
-       * :c:data:`bielec_pxxq_array`
-       * :c:data:`bielec_pxxq_no_array`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
        * :c:data:`list_core_inact_act`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`two_e_dm_mo`
 
  
 .. c:var:: n_core_inact_orb
 
 
-    File : :file:`bitmask/core_inact_act_virt.irp.f`
+    File : :file:`bitmask/bitmasks.irp.f`
 
     .. code:: fortran
 
         integer	:: n_core_inact_orb	
 
 
-    n_core + n_inact
 
     Needs:
 
@@ -1548,33 +1909,6 @@ Providers
        * :c:data:`n_int`
        * :c:data:`reunion_of_core_inact_bitmask`
 
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`bielec_pqxx_array`
-       * :c:data:`bielec_pqxx_no_array`
-       * :c:data:`bielec_pxxq_array`
-       * :c:data:`bielec_pxxq_no_array`
-       * :c:data:`cholesky_no_total_transp`
-       * :c:data:`d0tu_alpha_ao`
-       * :c:data:`dim_list_core_inact_orb`
-       * :c:data:`etwo`
-       * :c:data:`excit`
-       * :c:data:`fipq`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`list_core_inact`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`n_c_a_prov`
-       * :c:data:`nmonoex`
-       * :c:data:`occnum`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
 
  
 .. c:var:: n_core_orb
@@ -1585,9 +1919,33 @@ Providers
     .. code:: fortran
 
         integer	:: n_core_orb	
+        integer	:: n_inact_orb	
+        integer	:: n_act_orb	
+        integer	:: n_virt_orb	
+        integer	:: n_del_orb	
 
 
-    Number of core MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
@@ -1603,7 +1961,6 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`core_bitmask`
        * :c:data:`core_energy`
        * :c:data:`core_energy_erf`
        * :c:data:`core_fock_operator`
@@ -1611,21 +1968,36 @@ Providers
        * :c:data:`dim_list_core_orb`
        * :c:data:`eigenvectors_fock_matrix_mo`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`list_core`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
        * :c:data:`n_core_inact_act_orb`
-       * :c:data:`one_e_dm_mo_alpha_for_dft`
-       * :c:data:`one_e_dm_mo_alpha_for_dft_no_core`
-       * :c:data:`one_e_dm_mo_beta_for_dft`
-       * :c:data:`one_e_dm_mo_beta_for_dft_no_core`
+       * :c:data:`n_core_orb_allocate`
+       * :c:data:`n_inact_act_orb`
+       * :c:data:`n_inact_orb_allocate`
+       * :c:data:`n_virt_orb_allocate`
        * :c:data:`pt2_f`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
+
+ 
+.. c:var:: n_core_orb_allocate
+
+
+    File : :file:`bitmask/bitmasks.irp.f`
+
+    .. code:: fortran
+
+        integer	:: n_core_orb_allocate	
+
+
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`n_core_orb`
+
 
  
 .. c:var:: n_del_orb
@@ -1635,10 +2007,34 @@ Providers
 
     .. code:: fortran
 
+        integer	:: n_core_orb	
+        integer	:: n_inact_orb	
+        integer	:: n_act_orb	
+        integer	:: n_virt_orb	
         integer	:: n_del_orb	
 
 
-    Number of deleted MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
@@ -1654,9 +2050,83 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`del_bitmask`
-       * :c:data:`dim_list_del_orb`
-       * :c:data:`list_del`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`dim_list_core_orb`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`n_core_inact_act_orb`
+       * :c:data:`n_core_orb_allocate`
+       * :c:data:`n_inact_act_orb`
+       * :c:data:`n_inact_orb_allocate`
+       * :c:data:`n_virt_orb_allocate`
+       * :c:data:`pt2_f`
+
+ 
+.. c:var:: n_generators_bitmask
+
+
+    File : :file:`bitmask/bitmasks.irp.f`
+
+    .. code:: fortran
+
+        integer	:: n_generators_bitmask	
+
+
+    Number of bitmasks for generators
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`ezfio_filename`
+       * :c:data:`mpi_master`
+       * :c:data:`n_int`
+
+    Needed by:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`cas_bitmask`
+       * :c:data:`generators_bitmask`
+       * :c:data:`generators_bitmask_restart`
+
+ 
+.. c:var:: n_generators_bitmask_restart
+
+
+    File : :file:`bitmask/bitmasks.irp.f`
+
+    .. code:: fortran
+
+        integer	:: n_generators_bitmask_restart	
+
+
+    Number of bitmasks for generators
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`ezfio_filename`
+       * :c:data:`mpi_master`
+       * :c:data:`n_int`
+
+    Needed by:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`generators_bitmask_restart`
 
  
 .. c:var:: n_inact_act_orb
@@ -1669,15 +2139,13 @@ Providers
         integer	:: n_inact_act_orb	
 
 
-    n_inact + n_act
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`n_act_orb`
-       * :c:data:`n_inact_orb`
+       * :c:data:`n_core_orb`
 
     Needed by:
 
@@ -1694,10 +2162,34 @@ Providers
 
     .. code:: fortran
 
+        integer	:: n_core_orb	
         integer	:: n_inact_orb	
+        integer	:: n_act_orb	
+        integer	:: n_virt_orb	
+        integer	:: n_del_orb	
 
 
-    Number of inactive MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
@@ -1713,21 +2205,43 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`dim_list_inact_orb`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`eigenvectors_fock_matrix_mo`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`full_occ_2_rdm_aa_mo`
-       * :c:data:`full_occ_2_rdm_ab_mo`
-       * :c:data:`full_occ_2_rdm_bb_mo`
-       * :c:data:`full_occ_2_rdm_spin_trace_mo`
-       * :c:data:`inact_bitmask`
+       * :c:data:`list_core_inact_act`
        * :c:data:`list_inact`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
        * :c:data:`n_core_inact_act_orb`
+       * :c:data:`n_core_orb_allocate`
        * :c:data:`n_inact_act_orb`
-       * :c:data:`state_av_full_occ_2_rdm_aa_mo`
-       * :c:data:`state_av_full_occ_2_rdm_ab_mo`
-       * :c:data:`state_av_full_occ_2_rdm_bb_mo`
-       * :c:data:`state_av_full_occ_2_rdm_spin_trace_mo`
+       * :c:data:`n_inact_orb_allocate`
+       * :c:data:`n_virt_orb_allocate`
+       * :c:data:`pt2_f`
+
+ 
+.. c:var:: n_inact_orb_allocate
+
+
+    File : :file:`bitmask/bitmasks.irp.f`
+
+    .. code:: fortran
+
+        integer	:: n_inact_orb_allocate	
+
+
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`n_core_orb`
+
 
  
 .. c:var:: n_int
@@ -1755,18 +2269,14 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
-       * :c:data:`cfg_seniority_index`
+       * :c:data:`cas_bitmask`
        * :c:data:`ci_electronic_energy`
        * :c:data:`closed_shell_ref_bitmask`
        * :c:data:`coef_hf_selector`
-       * :c:data:`core_bitmask`
        * :c:data:`core_inact_act_bitmask_4`
-       * :c:data:`del_bitmask`
-       * :c:data:`det_to_configuration`
-       * :c:data:`dettocsftransformationmatrix`
+       * :c:data:`degree_max_generators`
+       * :c:data:`det_to_occ_pattern`
        * :c:data:`diagonal_h_matrix_on_psi_det`
-       * :c:data:`dominant_dets_of_cfgs`
        * :c:data:`double_exc_bitmask`
        * :c:data:`exc_degree_per_selectors`
        * :c:data:`fock_operator_closed_shell_ref_bitmask`
@@ -1774,41 +2284,26 @@ Providers
        * :c:data:`full_ijkl_bitmask`
        * :c:data:`full_ijkl_bitmask_4`
        * :c:data:`generators_bitmask`
+       * :c:data:`generators_bitmask_restart`
        * :c:data:`global_selection_buffer`
-       * :c:data:`gradvec_old`
        * :c:data:`h_apply_buffer_allocated`
        * :c:data:`h_matrix_all_dets`
        * :c:data:`h_matrix_cas`
-       * :c:data:`h_matrix_diag_all_dets`
-       * :c:data:`hessmat_old`
        * :c:data:`hf_bitmask`
-       * :c:data:`inact_bitmask`
        * :c:data:`inact_virt_bitmask`
-       * :c:data:`list_core_inact`
        * :c:data:`list_core_inact_act`
-       * :c:data:`list_inact_act`
+       * :c:data:`list_inact`
        * :c:data:`max_degree_exc`
        * :c:data:`mo_two_e_integrals_erf_in_map`
        * :c:data:`mo_two_e_integrals_in_map`
-       * :c:data:`multi_s_dipole_moment`
+       * :c:data:`n_cas_bitmask`
        * :c:data:`n_core_inact_orb`
-       * :c:data:`n_det_generators`
-       * :c:data:`n_dominant_dets_of_cfgs`
-       * :c:data:`n_elec_alpha_for_psi_configuration`
+       * :c:data:`n_generators_bitmask`
+       * :c:data:`n_generators_bitmask_restart`
        * :c:data:`one_e_dm_mo_alpha`
-       * :c:data:`one_e_tr_dm_mo`
-       * :c:data:`one_e_tr_dm_mo_alpha`
-       * :c:data:`orb_swap`
-       * :c:data:`ormas_bitmask`
-       * :c:data:`p0tuvx`
-       * :c:data:`p0tuvx_peter`
        * :c:data:`psi_bilinear_matrix_values`
        * :c:data:`psi_cas`
        * :c:data:`psi_cas_sorted_bit`
-       * :c:data:`psi_configuration`
-       * :c:data:`psi_configuration_sorted`
-       * :c:data:`psi_configuration_to_psi_det`
-       * :c:data:`psi_csf_coef`
        * :c:data:`psi_det`
        * :c:data:`psi_det_alpha`
        * :c:data:`psi_det_alpha_unique`
@@ -1818,32 +2313,29 @@ Providers
        * :c:data:`psi_det_hii`
        * :c:data:`psi_det_sorted`
        * :c:data:`psi_det_sorted_bit`
+       * :c:data:`psi_det_sorted_gen`
        * :c:data:`psi_energy`
        * :c:data:`psi_energy_two_e`
-       * :c:data:`psi_energy_two_e_trans`
        * :c:data:`psi_non_cas`
        * :c:data:`psi_non_cas_sorted_bit`
+       * :c:data:`psi_occ_pattern`
        * :c:data:`psi_selectors`
        * :c:data:`psi_selectors_diag_h_mat`
        * :c:data:`ref_bitmask`
        * :c:data:`ref_bitmask_energy`
        * :c:data:`ref_closed_shell_bitmask`
-       * :c:data:`reunion_of_act_virt_bitmask`
        * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
        * :c:data:`reunion_of_core_inact_act_bitmask`
        * :c:data:`reunion_of_core_inact_bitmask`
-       * :c:data:`reunion_of_inact_act_bitmask`
        * :c:data:`s2_matrix_all_dets`
        * :c:data:`s2_values`
        * :c:data:`single_exc_bitmask`
        * :c:data:`singles_alpha_csc`
        * :c:data:`singles_alpha_csc_idx`
-       * :c:data:`singles_alpha_csc_map`
        * :c:data:`singles_beta_csc`
        * :c:data:`singles_beta_csc_idx`
-       * :c:data:`singles_beta_csc_map`
        * :c:data:`unpaired_alpha_electrons`
-       * :c:data:`virt_bitmask`
        * :c:data:`virt_bitmask_4`
 
  
@@ -1854,10 +2346,34 @@ Providers
 
     .. code:: fortran
 
+        integer	:: n_core_orb	
+        integer	:: n_inact_orb	
+        integer	:: n_act_orb	
         integer	:: n_virt_orb	
+        integer	:: n_del_orb	
 
 
-    Number of virtual MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
@@ -1873,213 +2389,43 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`cholesky_no_total_transp`
-       * :c:data:`dim_list_virt_orb`
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`dim_list_core_orb`
        * :c:data:`eigenvectors_fock_matrix_mo`
-       * :c:data:`excit`
        * :c:data:`fock_matrix_mo`
-       * :c:data:`gradvec2`
-       * :c:data:`hessdiag`
-       * :c:data:`hessmat`
-       * :c:data:`hessmat_peter`
-       * :c:data:`list_virt`
-       * :c:data:`lowest_super_ci_coef_mo`
-       * :c:data:`mat_tmp_dm_super_ci`
-       * :c:data:`n_c_a_prov`
-       * :c:data:`nmonoex`
-       * :c:data:`super_ci_dm`
-       * :c:data:`umat`
-       * :c:data:`virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
+       * :c:data:`n_core_inact_act_orb`
+       * :c:data:`n_core_orb_allocate`
+       * :c:data:`n_inact_act_orb`
+       * :c:data:`n_inact_orb_allocate`
+       * :c:data:`n_virt_orb_allocate`
+       * :c:data:`pt2_f`
 
  
-.. c:var:: ormas_bitmask
+.. c:var:: n_virt_orb_allocate
 
 
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
+    File : :file:`bitmask/bitmasks.irp.f`
 
     .. code:: fortran
 
-        integer(bit_kind), allocatable	:: ormas_bitmask	(N_int,ormas_n_space)
+        integer	:: n_virt_orb_allocate	
 
 
-    bitmask for each ormas space
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`n_int`
-       * :c:data:`ormas_list_orb`
-       * :c:data:`ormas_n_orb`
-       * :c:data:`ormas_n_space`
+       * :c:data:`n_core_orb`
 
-
- 
-.. c:var:: ormas_list_orb
-
-
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: ormas_list_orb	(ormas_max_n_orb,ormas_n_space)
-
-
-    list of orbitals in each ormas space
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ormas_n_orb`
-       * :c:data:`ormas_n_space`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ormas_bitmask`
-
- 
-.. c:var:: ormas_max_e
-
-
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: ormas_max_e	(ormas_n_space)
-
-
-    max nelec in each active space
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`elec_num`
-       * :c:data:`ezfio_filename`
-       * :c:data:`mpi_master`
-       * :c:data:`ormas_n_space`
-
-
- 
-.. c:var:: ormas_max_n_orb
-
-
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: ormas_n_orb	(ormas_n_space)
-        integer	:: ormas_max_n_orb	
-
-
-    number of orbitals in each ormas space
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`mo_num`
-       * :c:data:`ormas_mstart`
-       * :c:data:`ormas_n_space`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ormas_bitmask`
-       * :c:data:`ormas_list_orb`
-
- 
-.. c:var:: ormas_min_e
-
-
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: ormas_min_e	(ormas_n_space)
-
-
-    min nelec in each active space
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ezfio_filename`
-       * :c:data:`mpi_master`
-       * :c:data:`ormas_n_space`
-
-
- 
-.. c:var:: ormas_mstart
-
-
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: ormas_mstart	(ormas_n_space)
-
-
-    first orbital idx in each active space
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ezfio_filename`
-       * :c:data:`mpi_master`
-       * :c:data:`ormas_n_space`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ormas_n_orb`
-
- 
-.. c:var:: ormas_n_orb
-
-
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: ormas_n_orb	(ormas_n_space)
-        integer	:: ormas_max_n_orb	
-
-
-    number of orbitals in each ormas space
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`mo_num`
-       * :c:data:`ormas_mstart`
-       * :c:data:`ormas_n_space`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ormas_bitmask`
-       * :c:data:`ormas_list_orb`
 
  
 .. c:var:: ref_bitmask
@@ -2117,35 +2463,6 @@ Providers
        * :c:data:`ref_closed_shell_bitmask`
 
  
-.. c:var:: reunion_of_act_virt_bitmask
-
-
-    File : :file:`bitmask/bitmasks.irp.f`
-
-    .. code:: fortran
-
-        integer(bit_kind), allocatable	:: reunion_of_act_virt_bitmask	(N_int,2)
-
-
-    Reunion of the  inactive and active bitmasks
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`act_bitmask`
-       * :c:data:`n_int`
-       * :c:data:`virt_bitmask`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`generators_bitmask`
-
- 
 .. c:var:: reunion_of_bitmask
 
 
@@ -2163,10 +2480,31 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
-       * :c:data:`inact_bitmask`
+       * :c:data:`cas_bitmask`
+       * :c:data:`list_inact`
        * :c:data:`n_int`
-       * :c:data:`virt_bitmask`
+
+
+ 
+.. c:var:: reunion_of_cas_inact_bitmask
+
+
+    File : :file:`bitmask/bitmasks.irp.f`
+
+    .. code:: fortran
+
+        integer(bit_kind), allocatable	:: reunion_of_cas_inact_bitmask	(N_int,2)
+
+
+    Reunion of the inactive, active and virtual bitmasks
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`list_inact`
+       * :c:data:`n_int`
 
 
  
@@ -2187,7 +2525,7 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
+       * :c:data:`list_inact`
        * :c:data:`n_int`
        * :c:data:`reunion_of_core_inact_bitmask`
 
@@ -2217,8 +2555,7 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`core_bitmask`
-       * :c:data:`inact_bitmask`
+       * :c:data:`list_inact`
        * :c:data:`n_int`
 
     Needed by:
@@ -2226,41 +2563,8 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_core_inact`
        * :c:data:`n_core_inact_orb`
-       * :c:data:`n_det_generators`
-       * :c:data:`psi_det_generators`
        * :c:data:`reunion_of_core_inact_act_bitmask`
-
- 
-.. c:var:: reunion_of_inact_act_bitmask
-
-
-    File : :file:`bitmask/bitmasks.irp.f`
-
-    .. code:: fortran
-
-        integer(bit_kind), allocatable	:: reunion_of_inact_act_bitmask	(N_int,2)
-
-
-    Reunion of the  inactive and active bitmasks
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`act_bitmask`
-       * :c:data:`inact_bitmask`
-       * :c:data:`n_int`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`generators_bitmask`
-       * :c:data:`list_inact_act`
 
  
 .. c:var:: unpaired_alpha_electrons
@@ -2292,30 +2596,76 @@ Providers
 
     .. code:: fortran
 
+        integer, allocatable	:: list_inact	(dim_list_inact_orb)
+        integer, allocatable	:: list_virt	(dim_list_virt_orb)
+        integer, allocatable	:: list_inact_reverse	(mo_num)
+        integer, allocatable	:: list_virt_reverse	(mo_num)
+        integer, allocatable	:: list_del_reverse	(mo_num)
+        integer, allocatable	:: list_del	(mo_num)
+        integer, allocatable	:: list_core	(dim_list_core_orb)
+        integer, allocatable	:: list_core_reverse	(mo_num)
+        integer, allocatable	:: list_act	(dim_list_act_orb)
+        integer, allocatable	:: list_act_reverse	(mo_num)
+        integer(bit_kind), allocatable	:: core_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: inact_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: act_bitmask	(N_int,2)
         integer(bit_kind), allocatable	:: virt_bitmask	(N_int,2)
+        integer(bit_kind), allocatable	:: del_bitmask	(N_int,2)
 
 
-    Bitmask identifying the virtual MOs
+    inact_bitmask : Bitmask of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    n_inact_orb   : Number of inactive orbitals
+    virt_bitmask  : Bitmaks of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    n_virt_orb    : Number of virtual orbitals
+    list_inact : List of the inactive orbitals which are supposed to be doubly excited
+    in post CAS methods
+    list_virt  : List of vritual orbitals which are supposed to be recieve electrons
+    in post CAS methods
+    list_inact_reverse : reverse list of inactive orbitals
+    list_inact_reverse(i) = 0 ::> not an inactive
+    list_inact_reverse(i) = k ::> IS the kth inactive
+    list_virt_reverse : reverse list of virtual orbitals
+    list_virt_reverse(i) = 0 ::> not an virtual
+    list_virt_reverse(i) = k ::> IS the kth virtual
+    list_act(i) = index of the ith active orbital
+    
+    list_act_reverse : reverse list of active orbitals
+    list_act_reverse(i) = 0 ::> not an active
+    list_act_reverse(i) = k ::> IS the kth active orbital
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_virt`
+       * :c:data:`dim_list_core_orb`
+       * :c:data:`mo_class`
+       * :c:data:`mo_num`
+       * :c:data:`n_core_orb`
        * :c:data:`n_int`
-       * :c:data:`n_virt_orb`
 
     Needed by:
 
     .. hlist::
        :columns: 3
 
+       * :c:data:`core_energy`
+       * :c:data:`core_energy_erf`
+       * :c:data:`core_fock_operator`
+       * :c:data:`core_fock_operator_erf`
+       * :c:data:`eigenvectors_fock_matrix_mo`
+       * :c:data:`fock_matrix_mo`
        * :c:data:`inact_virt_bitmask`
-       * :c:data:`n_det_generators`
-       * :c:data:`psi_det_generators`
-       * :c:data:`reunion_of_act_virt_bitmask`
+       * :c:data:`list_core_inact_act`
+       * :c:data:`list_inact_act`
+       * :c:data:`mo_two_e_integrals_in_map`
+       * :c:data:`mo_two_e_integrals_vv_from_ao`
        * :c:data:`reunion_of_bitmask`
+       * :c:data:`reunion_of_cas_inact_bitmask`
+       * :c:data:`reunion_of_core_inact_act_bitmask`
+       * :c:data:`reunion_of_core_inact_bitmask`
        * :c:data:`virt_bitmask_4`
 
  
@@ -2335,8 +2685,8 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`list_inact`
        * :c:data:`n_int`
-       * :c:data:`virt_bitmask`
 
 
  
@@ -2361,7 +2711,6 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:func:`debug_cfg`
        * :c:func:`debug_det`
        * :c:func:`debug_spindet`
 
@@ -2376,7 +2725,7 @@ Subroutines / functions
         subroutine bitstring_to_list( string, list, n_elements, Nint)
 
 
-    Gives the indices(+1) of the bits set to 1 in the bit string
+    Gives the inidices(+1) of the bits set to 1 in the bit string
 
     Called by:
 
@@ -2385,16 +2734,13 @@ Subroutines / functions
 
        * :c:func:`add_integrals_to_map`
        * :c:func:`add_integrals_to_map_erf`
+       * :c:func:`add_integrals_to_map_no_exit_34`
+       * :c:func:`add_integrals_to_map_three_indices`
        * :c:func:`create_microlist`
        * :c:func:`example_bitmask`
-       * :c:func:`generate_cas_space`
        * :c:func:`getmobiles`
-       * :c:data:`list_core_inact`
        * :c:data:`list_core_inact_act`
-       * :c:data:`list_inact_act`
        * :c:data:`ref_bitmask_energy`
-       * :c:func:`splash_p`
-       * :c:func:`spot_hasbeen`
 
  
 .. c:function:: bitstring_to_str:
@@ -2414,10 +2760,11 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
+       * :c:func:`add_integrals_to_map`
        * :c:func:`add_integrals_to_map_erf`
+       * :c:func:`add_integrals_to_map_three_indices`
        * :c:func:`example_bitmask`
        * :c:func:`print_det`
-       * :c:func:`print_det_one_dimension`
        * :c:func:`print_spindet`
 
  
@@ -2455,48 +2802,6 @@ Subroutines / functions
        * :c:data:`ref_closed_shell_bitmask`
 
  
-.. c:function:: configuration_to_str:
-
-
-    File : :file:`bitmask/bitmasks_routines.irp.f`
-
-    .. code:: fortran
-
-        subroutine configuration_to_str( output, string, Nint )
-
-
-    Transform the bit string of a configuration to a string for printing
-
-    Called by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:func:`debug_cfg`
-
- 
-.. c:function:: debug_cfg:
-
-
-    File : :file:`bitmask/bitmasks_routines.irp.f`
-
-    .. code:: fortran
-
-        subroutine debug_cfg(string,Nint)
-
-
-    Subroutine to print the content of a determinant in '+-' notation and
-    hexadecimal representation.
-
-    Calls:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:func:`bitstring_to_hexa`
-       * :c:func:`configuration_to_str`
-
- 
 .. c:function:: debug_det:
 
 
@@ -2518,7 +2823,6 @@ Subroutines / functions
        * :c:func:`build_fock_tmp`
        * :c:func:`example_determinants`
        * :c:func:`get_excitation_degree_vector_single_or_exchange_verbose`
-       * :c:func:`get_particles_general`
        * :c:func:`number_of_holes_verbose`
        * :c:func:`number_of_particles_verbose`
        * :c:func:`routine_example_psi_det`
@@ -2554,30 +2858,6 @@ Subroutines / functions
        * :c:func:`print_spindet`
 
  
-.. c:function:: det_allowed_ormas:
-
-
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
-
-    .. code:: fortran
-
-        logical function det_allowed_ormas(key_in)
-
-
-    return true if det has allowable ormas occupations
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`n_int`
-       * :c:data:`ormas_bitmask`
-       * :c:data:`ormas_max_e`
-       * :c:data:`ormas_min_e`
-       * :c:data:`ormas_n_space`
-
- 
 .. c:function:: example_bitmask:
 
 
@@ -2595,16 +2875,10 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:data:`list_act`
-       * :c:data:`list_core`
-       * :c:data:`list_inact`
-       * :c:data:`list_virt`
-       * :c:data:`mo_num`
-       * :c:data:`n_act_orb`
        * :c:data:`n_core_orb`
-       * :c:data:`n_inact_orb`
+       * :c:data:`list_inact`
        * :c:data:`n_int`
-       * :c:data:`n_virt_orb`
+       * :c:data:`mo_num`
 
     Calls:
 
@@ -2617,34 +2891,27 @@ Subroutines / functions
        * :c:func:`set_bit_to_integer`
 
  
-.. c:function:: initialize_mo_coef_begin_iteration:
+.. c:function:: initialize_bitmask_to_restart_ones:
 
 
-    File : :file:`bitmask/track_orb.irp.f`
+    File : :file:`bitmask/modify_bitmasks.irp.f`
 
     .. code:: fortran
 
-        subroutine initialize_mo_coef_begin_iteration
+        subroutine initialize_bitmask_to_restart_ones
 
 
-    
-    Initialize :c:data:`mo_coef_begin_iteration` to the current :c:data:`mo_coef`
+    Initialization of the generators_bitmask to the restart bitmask
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`mo_coef`
-       * :c:data:`mo_coef_begin_iteration`
-
-    Called by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:func:`damping_scf`
-       * :c:func:`roothaan_hall_scf`
+       * :c:data:`generators_bitmask_restart`
+       * :c:data:`n_generators_bitmask`
+       * :c:data:`generators_bitmask`
+       * :c:data:`n_int`
 
  
 .. c:function:: is_a_1h:
@@ -2792,7 +3059,7 @@ Subroutines / functions
 
     logical function that returns True if the determinant 'key_in'
     belongs to the 2h-2p excitation class of the DDCI space
-    this is calculated using the act_bitmask that defines the active
+    this is calculated using the CAS_bitmask that defines the active
     orbital space, the inact_bitmasl that defines the inactive oribital space
     and the virt_bitmask that defines the virtual orbital space
 
@@ -2801,10 +3068,10 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
-       * :c:data:`n_int`
+       * :c:data:`cas_bitmask`
        * :c:data:`reunion_of_core_inact_bitmask`
-       * :c:data:`virt_bitmask`
+       * :c:data:`list_inact`
+       * :c:data:`n_int`
 
  
 .. c:function:: is_i_in_virtual:
@@ -2823,27 +3090,8 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
+       * :c:data:`list_inact`
        * :c:data:`n_int`
-       * :c:data:`virt_bitmask`
-
- 
-.. c:function:: is_integer_in_string:
-
-
-    File : :file:`bitmask/bitmasks_routines.irp.f`
-
-    .. code:: fortran
-
-        logical function is_integer_in_string(bite,string,Nint)
-
-
-
-    Calls:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:func:`set_bit_to_integer`
 
  
 .. c:function:: is_the_hole_in_det:
@@ -2902,29 +3150,8 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
-       * :c:data:`core_bitmask`
-       * :c:data:`del_bitmask`
-       * :c:func:`generate_cas_space`
        * :c:data:`hf_bitmask`
-       * :c:data:`inact_bitmask`
-       * :c:func:`orb_range_2_rdm_openmp_work_1`
-       * :c:func:`orb_range_2_rdm_openmp_work_2`
-       * :c:func:`orb_range_2_rdm_openmp_work_3`
-       * :c:func:`orb_range_2_rdm_openmp_work_4`
-       * :c:func:`orb_range_2_rdm_openmp_work_n_int`
-       * :c:func:`orb_range_2_rdm_state_av_openmp_work_1`
-       * :c:func:`orb_range_2_rdm_state_av_openmp_work_2`
-       * :c:func:`orb_range_2_rdm_state_av_openmp_work_3`
-       * :c:func:`orb_range_2_rdm_state_av_openmp_work_4`
-       * :c:func:`orb_range_2_rdm_state_av_openmp_work_n_int`
-       * :c:func:`orb_range_2_trans_rdm_openmp_work_1`
-       * :c:func:`orb_range_2_trans_rdm_openmp_work_2`
-       * :c:func:`orb_range_2_trans_rdm_openmp_work_3`
-       * :c:func:`orb_range_2_trans_rdm_openmp_work_4`
-       * :c:func:`orb_range_2_trans_rdm_openmp_work_n_int`
-       * :c:data:`ormas_bitmask`
-       * :c:data:`virt_bitmask`
+       * :c:data:`list_inact`
 
  
 .. c:function:: modify_bitmasks_for_hole:
@@ -2945,9 +3172,10 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
+       * :c:data:`n_generators_bitmask`
        * :c:data:`generators_bitmask`
-       * :c:data:`index_holes_bitmask`
        * :c:data:`n_int`
+       * :c:data:`index_holes_bitmask`
 
  
 .. c:function:: modify_bitmasks_for_hole_in_out:
@@ -2968,6 +3196,7 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
+       * :c:data:`n_generators_bitmask`
        * :c:data:`generators_bitmask`
        * :c:data:`index_holes_bitmask`
 
@@ -2990,8 +3219,9 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:data:`generators_bitmask`
        * :c:data:`index_particl_bitmask`
+       * :c:data:`n_generators_bitmask`
+       * :c:data:`generators_bitmask`
        * :c:data:`n_int`
 
  
@@ -3006,38 +3236,15 @@ Subroutines / functions
 
 
     Function that returns the number of holes in the inact space
-    
-      popcnt(
-         xor(
-           iand(
-             reunion_of_core_inact_bitmask(1,1),
-             xor(
-               key_in(1,1),
-               iand(
-                 key_in(1,1),
-                 act_bitmask(1,1))
-             )
-           ),
-           reunion_of_core_inact_bitmask(1,1)) )
-    
-    (key_in && act_bitmask)
-    +---------------------+
-       electrons in cas     xor key_in
-    +---------------------------------+
-           electrons outside of cas     && reunion_of_core_inact_bitmask
-    +------------------------------------------------------------------+
-               electrons in the core/inact space     xor reunion_of_core_inact_bitmask
-    +---------------------------------------------------------------------------------+
-                 holes
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
-       * :c:data:`n_int`
+       * :c:data:`cas_bitmask`
        * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`n_int`
 
  
 .. c:function:: number_of_holes_verbose:
@@ -3057,9 +3264,9 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
-       * :c:data:`n_int`
+       * :c:data:`cas_bitmask`
        * :c:data:`reunion_of_core_inact_bitmask`
+       * :c:data:`n_int`
 
     Calls:
 
@@ -3086,9 +3293,9 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
+       * :c:data:`cas_bitmask`
+       * :c:data:`list_inact`
        * :c:data:`n_int`
-       * :c:data:`virt_bitmask`
 
  
 .. c:function:: number_of_particles_verbose:
@@ -3108,9 +3315,9 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:data:`act_bitmask`
+       * :c:data:`cas_bitmask`
+       * :c:data:`list_inact`
        * :c:data:`n_int`
-       * :c:data:`virt_bitmask`
 
     Calls:
 
@@ -3118,28 +3325,6 @@ Subroutines / functions
        :columns: 3
 
        * :c:func:`debug_det`
-
- 
-.. c:function:: ormas_occ:
-
-
-    File : :file:`bitmask/bitmasks_ormas.irp.f`
-
-    .. code:: fortran
-
-        subroutine ormas_occ(key_in, occupancies)
-
-
-    number of electrons in each ormas space
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`n_int`
-       * :c:data:`ormas_bitmask`
-       * :c:data:`ormas_n_space`
 
  
 .. c:function:: print_det:
@@ -3161,27 +3346,10 @@ Subroutines / functions
 
        * :c:func:`debug_det`
        * :c:func:`example_determinants`
+       * :c:func:`print_generators_bitmasks_holes`
+       * :c:func:`print_generators_bitmasks_holes_for_one_generator`
        * :c:func:`print_generators_bitmasks_particles`
-
-    Calls:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:func:`bitstring_to_str`
-
- 
-.. c:function:: print_det_one_dimension:
-
-
-    File : :file:`bitmask/bitmasks_routines.irp.f`
-
-    .. code:: fortran
-
-        subroutine print_det_one_dimension(string,Nint)
-
-
-    Subroutine to print the content of a determinant using the '+-' notation
+       * :c:func:`print_generators_bitmasks_particles_for_one_generator`
 
     Calls:
 
@@ -3208,8 +3376,43 @@ Subroutines / functions
        :columns: 3
 
        * :c:data:`generators_bitmask`
-       * :c:data:`index_holes_bitmask`
        * :c:data:`n_int`
+       * :c:data:`index_holes_bitmask`
+
+    Calls:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:func:`print_det`
+
+ 
+.. c:function:: print_generators_bitmasks_holes_for_one_generator:
+
+
+    File : :file:`bitmask/modify_bitmasks.irp.f`
+
+    .. code:: fortran
+
+        subroutine print_generators_bitmasks_holes_for_one_generator(i_gen)
+
+
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`generators_bitmask`
+       * :c:data:`n_int`
+       * :c:data:`index_holes_bitmask`
+
+    Calls:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:func:`print_det`
 
  
 .. c:function:: print_generators_bitmasks_particles:
@@ -3228,8 +3431,36 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
-       * :c:data:`generators_bitmask`
        * :c:data:`index_particl_bitmask`
+       * :c:data:`generators_bitmask`
+       * :c:data:`n_int`
+
+    Calls:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:func:`print_det`
+
+ 
+.. c:function:: print_generators_bitmasks_particles_for_one_generator:
+
+
+    File : :file:`bitmask/modify_bitmasks.irp.f`
+
+    .. code:: fortran
+
+        subroutine print_generators_bitmasks_particles_for_one_generator(i_gen)
+
+
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`index_particl_bitmask`
+       * :c:data:`generators_bitmask`
        * :c:data:`n_int`
 
     Calls:
@@ -3267,47 +3498,6 @@ Subroutines / functions
        * :c:func:`bitstring_to_str`
 
  
-.. c:function:: reorder_core_orb:
-
-
-    File : :file:`bitmask/track_orb.irp.f`
-
-    .. code:: fortran
-
-        subroutine reorder_core_orb
-
-
-    routines that takes the current :c:data:`mo_coef` and reorder the core orbitals (see :c:data:`list_core` and :c:data:`n_core_orb`) according to the overlap with :c:data:`mo_coef_begin_iteration`
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ao_num`
-       * :c:data:`ao_overlap`
-       * :c:data:`list_core`
-       * :c:data:`mo_coef`
-       * :c:data:`mo_coef_begin_iteration`
-       * :c:data:`mo_num`
-       * :c:data:`n_core_orb`
-
-    Called by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:func:`damping_scf`
-       * :c:func:`roothaan_hall_scf`
-
-    Calls:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:func:`dsort`
-
- 
 .. c:function:: set_bit_to_integer:
 
 
@@ -3326,8 +3516,6 @@ Subroutines / functions
        :columns: 3
 
        * :c:func:`example_bitmask`
-       * :c:func:`is_integer_in_string`
-       * :c:data:`orb_swap`
 
  
 .. c:function:: set_bitmask_hole_as_input:
@@ -3337,20 +3525,21 @@ Subroutines / functions
 
     .. code:: fortran
 
-        subroutine set_bitmask_hole_as_input(input_bitmask)
+        subroutine set_bitmask_hole_as_input(input_bimask)
 
 
     set the generators_bitmask for the holes
-    as the input_bitmask
+    as the input_bimask
 
     Needs:
 
     .. hlist::
        :columns: 3
 
+       * :c:data:`n_generators_bitmask`
        * :c:data:`generators_bitmask`
-       * :c:data:`index_holes_bitmask`
        * :c:data:`n_int`
+       * :c:data:`index_holes_bitmask`
 
     Touches:
 
@@ -3367,19 +3556,20 @@ Subroutines / functions
 
     .. code:: fortran
 
-        subroutine set_bitmask_particl_as_input(input_bitmask)
+        subroutine set_bitmask_particl_as_input(input_bimask)
 
 
     set the generators_bitmask for the particles
-    as the input_bitmask
+    as the input_bimask
 
     Needs:
 
     .. hlist::
        :columns: 3
 
-       * :c:data:`generators_bitmask`
        * :c:data:`index_particl_bitmask`
+       * :c:data:`n_generators_bitmask`
+       * :c:data:`generators_bitmask`
        * :c:data:`n_int`
 
     Touches:

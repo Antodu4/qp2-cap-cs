@@ -129,7 +129,7 @@ subroutine check_mem(rss_in,routine)
   double precision :: mem
   call resident_memory(mem)
   mem += rss_in
-  if (mem > dble(qp_max_mem)) then
+  if (mem > qp_max_mem) then
     call print_memory_usage()
     print *,  'Not enough memory: aborting in ', routine
     print *,  mem, ' GB required'
@@ -162,7 +162,6 @@ integer function get_total_available_memory() result(res)
   integer :: iunit
   integer*8, parameter :: KB = 1024
   integer*8, parameter :: GiB = 1024**3
-  integer*8 :: kb_read
   integer, external :: getUnitAndOpen
 
   iunit = getUnitAndOpen('/proc/meminfo','r')
@@ -171,8 +170,8 @@ integer function get_total_available_memory() result(res)
   do
       read(iunit, '(A)', END=10) line
       if (line(1:10) == "MemTotal: ") then
-        read(line(11:), *, ERR=20) kb_read
-        res = int((kb_read*KB) / GiB,4)
+        read(line(11:), *, ERR=20) res
+        res = int((res*KB) / GiB,4)
         exit
  20     continue
       end if

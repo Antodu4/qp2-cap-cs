@@ -1,10 +1,10 @@
 
 ! ---
 
- BEGIN_PROVIDER [double precision, ao_overlap  , (ao_num, ao_num)]
-&BEGIN_PROVIDER [double precision, ao_overlap_x, (ao_num, ao_num)]
-&BEGIN_PROVIDER [double precision, ao_overlap_y, (ao_num, ao_num)]
-&BEGIN_PROVIDER [double precision, ao_overlap_z, (ao_num, ao_num)]
+ BEGIN_PROVIDER [ double precision, ao_overlap  , (ao_num, ao_num) ]
+&BEGIN_PROVIDER [ double precision, ao_overlap_x, (ao_num, ao_num) ]
+&BEGIN_PROVIDER [ double precision, ao_overlap_y, (ao_num, ao_num) ]
+&BEGIN_PROVIDER [ double precision, ao_overlap_z, (ao_num, ao_num) ]
 
   BEGIN_DOC
   ! Overlap between atomic basis functions:
@@ -30,14 +30,15 @@
 
   else
 
-    if(use_cgtos) then
+    if(use_cosgtos) then
+      !print*, ' use_cosgtos for ao_overlap ?', use_cosgtos
 
       do j = 1, ao_num
         do i = 1, ao_num
-          ao_overlap  (i,j) = ao_overlap_cgtos  (i,j) 
-          ao_overlap_x(i,j) = ao_overlap_cgtos_x(i,j)
-          ao_overlap_y(i,j) = ao_overlap_cgtos_y(i,j)
-          ao_overlap_z(i,j) = ao_overlap_cgtos_z(i,j)
+          ao_overlap  (i,j) = ao_overlap_cosgtos  (i,j) 
+          ao_overlap_x(i,j) = ao_overlap_cosgtos_x(i,j)
+          ao_overlap_y(i,j) = ao_overlap_cosgtos_y(i,j)
+          ao_overlap_z(i,j) = ao_overlap_cosgtos_z(i,j)
         enddo
       enddo
 
@@ -48,7 +49,7 @@
       !$OMP DEFAULT(NONE) &
       !$OMP PRIVATE(A_center,B_center,power_A,power_B,&
       !$OMP  overlap_x,overlap_y, overlap_z, overlap, &
-      !$OMP  alpha, beta,i,j,n,l,c) &
+      !$OMP  alpha, beta,i,j,c) &
       !$OMP SHARED(nucl_coord,ao_power,ao_prim_num, &
       !$OMP  ao_overlap_x,ao_overlap_y,ao_overlap_z,ao_overlap,ao_num,ao_coef_normalized_ordered_transp,ao_nucl, &
       !$OMP  ao_expo_ordered_transp,dim1)
@@ -305,29 +306,6 @@ BEGIN_PROVIDER [ double precision, S_half, (ao_num,ao_num)  ]
   enddo
 
   deallocate(U,Vt,D)
-
-END_PROVIDER
-
-
-BEGIN_PROVIDER [ double precision, ao_sphe_overlap, (ao_sphe_num,ao_sphe_num) ]
- implicit none
- BEGIN_DOC
- ! |AO| overlap matrix in the spherical basis set
- END_DOC
- double precision, allocatable :: tmp(:,:)
- allocate (tmp(ao_sphe_num,ao_num))
-
- call dgemm('N','N',ao_sphe_num,ao_num,ao_num, 1.d0, &
-   ao_cart_to_sphe_inv,size(ao_cart_to_sphe_inv,1), &
-   ao_overlap,size(ao_overlap,1), 0.d0, &
-   tmp, size(tmp,1))
-
- call dgemm('N','T',ao_sphe_num,ao_sphe_num,ao_num, 1.d0, &
-   tmp, size(tmp,1), &
-   ao_cart_to_sphe_inv,size(ao_cart_to_sphe_inv,1), 0.d0, &
-   ao_sphe_overlap,size(ao_sphe_overlap,1))
-
- deallocate(tmp)
 
 END_PROVIDER
 

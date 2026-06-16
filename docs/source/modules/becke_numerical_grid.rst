@@ -366,7 +366,6 @@ Providers
        * :c:data:`aos_vxc_alpha_lda_w`
        * :c:data:`aos_vxc_alpha_pbe_w`
        * :c:data:`aos_vxc_alpha_sr_pbe_w`
-       * :c:data:`average_on_top`
        * :c:data:`elec_beta_num_grid_becke`
        * :c:data:`energy_c_lda`
        * :c:data:`energy_c_sr_lda`
@@ -425,7 +424,6 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`aos_grad_in_r_array_extra`
        * :c:data:`aos_in_r_array_extra`
 
  
@@ -609,7 +607,6 @@ Providers
        * :c:data:`aos_vxc_alpha_lda_w`
        * :c:data:`aos_vxc_alpha_pbe_w`
        * :c:data:`aos_vxc_alpha_sr_pbe_w`
-       * :c:data:`average_on_top`
        * :c:data:`elec_beta_num_grid_becke`
        * :c:data:`energy_c_lda`
        * :c:data:`energy_c_sr_lda`
@@ -668,7 +665,6 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`aos_grad_in_r_array_extra`
        * :c:data:`aos_in_r_array_extra`
 
  
@@ -918,7 +914,6 @@ Providers
        * :c:data:`aos_vxc_alpha_lda_w`
        * :c:data:`aos_vxc_alpha_pbe_w`
        * :c:data:`aos_vxc_alpha_sr_pbe_w`
-       * :c:data:`average_on_top`
        * :c:data:`elec_beta_num_grid_becke`
        * :c:data:`energy_c_lda`
        * :c:data:`energy_c_sr_lda`
@@ -977,7 +972,6 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`aos_grad_in_r_array_extra`
        * :c:data:`aos_in_r_array_extra`
 
  
@@ -1019,7 +1013,6 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`aos_grad_in_r_array_extra`
        * :c:data:`aos_in_r_array_extra`
 
  
@@ -1133,7 +1126,6 @@ Providers
        * :c:data:`aos_vxc_alpha_lda_w`
        * :c:data:`aos_vxc_alpha_pbe_w`
        * :c:data:`aos_vxc_alpha_sr_pbe_w`
-       * :c:data:`average_on_top`
        * :c:data:`elec_beta_num_grid_becke`
        * :c:data:`energy_c_lda`
        * :c:data:`energy_c_sr_lda`
@@ -1204,7 +1196,6 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`aos_grad_in_r_array_extra`
        * :c:data:`aos_in_r_array_extra`
        * :c:data:`aos_in_r_array_extra_transp`
        * :c:data:`final_grid_points_extra`
@@ -1365,7 +1356,6 @@ Providers
        * :c:data:`aos_vxc_alpha_lda_w`
        * :c:data:`aos_vxc_alpha_pbe_w`
        * :c:data:`aos_vxc_alpha_sr_pbe_w`
-       * :c:data:`average_on_top`
        * :c:data:`basis_mos_in_r_array`
        * :c:data:`core_density`
        * :c:data:`core_inact_act_mos_grad_in_r_array`
@@ -1381,9 +1371,6 @@ Providers
        * :c:data:`energy_x_pbe`
        * :c:data:`energy_x_sr_lda`
        * :c:data:`energy_x_sr_pbe`
-       * :c:data:`f_hf_cholesky`
-       * :c:data:`f_hf_cholesky_sparse`
-       * :c:data:`f_hf_cholesky_sparse_bis`
        * :c:data:`f_psi_cas_ab`
        * :c:data:`f_psi_cas_ab_old`
        * :c:data:`f_psi_hf_ab`
@@ -1406,19 +1393,14 @@ Providers
        * :c:data:`mos_in_r_array_transp`
        * :c:data:`mos_lapl_in_r_array`
        * :c:data:`mos_lapl_in_r_array_tranp`
-       * :c:data:`mos_times_cholesky_r1`
-       * :c:data:`mos_times_cholesky_r2`
        * :c:data:`mu_average_prov`
        * :c:data:`mu_grad_rho`
        * :c:data:`mu_of_r_dft`
        * :c:data:`mu_of_r_dft_average`
        * :c:data:`mu_of_r_hf`
-       * :c:data:`mu_of_r_hf_old`
-       * :c:data:`mu_of_r_hf_sparse`
        * :c:data:`mu_of_r_prov`
        * :c:data:`mu_of_r_psi_cas`
        * :c:data:`mu_rsc_of_r`
-       * :c:data:`on_top_hf_grid`
        * :c:data:`one_e_act_density_alpha`
        * :c:data:`one_e_act_density_beta`
        * :c:data:`one_e_cas_total_density`

@@ -1,7 +1,7 @@
 
 ! ---
 
-subroutine test_tc_bi_ortho
+program tc_bi_ortho
 
   BEGIN_DOC
   ! TODO : Put the documentation of the program here

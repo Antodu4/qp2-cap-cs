@@ -1,4 +1,4 @@
-program attachement_orb
+program molden_detachment_attachment
  implicit none
  read_wf=.True.
  touch read_wf

@@ -27,7 +27,7 @@ The |AO| coefficients are normalized as:
 .. warning::
 
   `ao_coef` contains the |AO| coefficients given in input. These do not
-  include the normalization constant of the |AO|. The `ao_coef_normalized_factor`
+  include the normalization constant of the |AO|. The `ao_coef_normalized`
   provider includes this normalization factor.
 
 
@@ -36,19 +36,6 @@ the two electron integrals.
 
 
 
-Complex Gaussian-Type Orbitals (cGTOs)
-=====================================
-
-Complex Gaussian-Type Orbitals (cGTOs) are also supported:
-
-.. math::
-
-   \chi_i(\mathbf{r}) = x^a y^b z^c \sum_k c_{ki} \left( e^{-\alpha_{ki} \mathbf{r}^2 - \imath \mathbf{k}_{ki} \cdot \mathbf{r} - \imath \phi_{ki}} + \text{C.C.} \right)
-
-where:
-   - :math:`\alpha \in \mathbb{C}` and :math:`\Re(\alpha) > 0` (specified by ``ao_expo`` and ``ao_expo_im``),
-   - :math:`\mathbf{k} = (k_x, k_y, k_z) \in \mathbb{R}^3` (specified by ``ao_expo_pw``),
-   - :math:`\phi = \phi_x + \phi_y + \phi_z \in \mathbb{R}` (specified by ``ao_expo_phase``).
  
  
  
@@ -107,39 +94,6 @@ EZFIO parameters
  
     Default: false
  
-.. option:: ao_normalized
- 
-    Use normalized basis functions
- 
-    Default: true
- 
-.. option:: primitives_normalized
- 
-    Use normalized primitive functions
- 
-    Default: true
- 
-.. option:: use_cgtos
- 
-    If true, use cgtos for AO integrals
- 
-    Default: False
- 
-.. option:: ao_expo_im
- 
-    imag part for Exponents for each primitive of each cGTOs |AO|
- 
- 
-.. option:: ao_expo_pw
- 
-    plane wave part for each primitive GTOs |AO|
- 
- 
-.. option:: ao_expo_phase
- 
-    phase shift for each primitive GTOs |AO|
- 
- 
  
 Providers 
 --------- 
@@ -176,7 +130,33 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`ao_coef_normalization_libint_factor`
        * :c:data:`ao_coef_normalized_ordered`
+
+ 
+.. c:var:: ao_coef_normalization_libint_factor
+
+
+    File : :file:`ao_basis/aos.irp.f`
+
+    .. code:: fortran
+
+        double precision, allocatable	:: ao_coef_normalization_libint_factor	(ao_num)
+
+
+    |AO| normalization for interfacing with libint
+
+    Needs:
+
+    .. hlist::
+       :columns: 3
+
+       * :c:data:`ao_coef_normalized`
+       * :c:data:`ao_expo`
+       * :c:data:`ao_l`
+       * :c:data:`ao_num`
+       * :c:data:`ao_prim_num`
+
 
  
 .. c:var:: ao_coef_normalized
@@ -211,6 +191,7 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`ao_coef_normalization_libint_factor`
        * :c:data:`ao_coef_normalized_ordered`
 
  
@@ -279,18 +260,13 @@ Providers
        * :c:data:`ao_dipole_x`
        * :c:data:`ao_integrals_n_e`
        * :c:data:`ao_integrals_n_e_per_atom`
-       * :c:data:`ao_integrals_pt_chrg`
        * :c:data:`ao_overlap`
        * :c:data:`ao_overlap_abs`
        * :c:data:`ao_pseudo_integrals_local`
        * :c:data:`ao_pseudo_integrals_non_local`
        * :c:data:`ao_spread_x`
-       * :c:data:`ao_two_e_integral_alpha`
-       * :c:data:`ao_two_e_integral_erf_schwartz`
        * :c:data:`ao_two_e_integral_schwartz`
-       * :c:data:`ao_two_e_integrals_erf_in_map`
        * :c:data:`ao_two_e_integrals_in_map`
-       * :c:data:`cholesky_ao_num`
 
  
 .. c:var:: ao_coef_normalized_ordered_transp_per_nucl
@@ -383,18 +359,13 @@ Providers
        * :c:data:`ao_expo_ordered_transp_per_nucl`
        * :c:data:`ao_integrals_n_e`
        * :c:data:`ao_integrals_n_e_per_atom`
-       * :c:data:`ao_integrals_pt_chrg`
        * :c:data:`ao_overlap`
        * :c:data:`ao_overlap_abs`
        * :c:data:`ao_pseudo_integrals_local`
        * :c:data:`ao_pseudo_integrals_non_local`
        * :c:data:`ao_spread_x`
-       * :c:data:`ao_two_e_integral_alpha`
-       * :c:data:`ao_two_e_integral_erf_schwartz`
        * :c:data:`ao_two_e_integral_schwartz`
-       * :c:data:`ao_two_e_integrals_erf_in_map`
        * :c:data:`ao_two_e_integrals_in_map`
-       * :c:data:`cholesky_ao_num`
 
  
 .. c:var:: ao_expo_ordered_transp_per_nucl
@@ -419,28 +390,6 @@ Providers
        * :c:data:`nucl_aos_transposed`
        * :c:data:`nucl_n_aos`
        * :c:data:`nucl_num`
-
-
- 
-.. c:var:: ao_first_of_shell
-
-
-    File : :file:`ao_basis/aos.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: ao_first_of_shell	(shell_num)
-
-
-    Index of the shell to which the AO corresponds
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`shell_ang_mom`
-       * :c:data:`shell_num`
 
 
  
@@ -473,6 +422,7 @@ Providers
        :columns: 3
 
        * :c:data:`ao_cart_to_sphe_coef`
+       * :c:data:`ao_coef_normalization_libint_factor`
        * :c:data:`ao_l_char_space`
        * :c:data:`nucl_list_shell_aos`
 
@@ -506,6 +456,7 @@ Providers
        :columns: 3
 
        * :c:data:`ao_cart_to_sphe_coef`
+       * :c:data:`ao_coef_normalization_libint_factor`
        * :c:data:`ao_l_char_space`
        * :c:data:`nucl_list_shell_aos`
 
@@ -562,6 +513,7 @@ Providers
        :columns: 3
 
        * :c:data:`ao_cart_to_sphe_coef`
+       * :c:data:`ao_coef_normalization_libint_factor`
        * :c:data:`ao_l_char_space`
        * :c:data:`nucl_list_shell_aos`
 
@@ -614,43 +566,13 @@ Providers
        :columns: 3
 
        * :c:data:`ao_coef`
-       * :c:data:`ao_coef_cgtos_norm_ord_transp`
-       * :c:data:`ao_coef_norm_cgtos`
-       * :c:data:`ao_coef_norm_cgtos_ord`
        * :c:data:`ao_coef_normalized`
        * :c:data:`ao_coef_normalized_ordered`
        * :c:data:`ao_coef_normalized_ordered_transp`
        * :c:data:`ao_coef_normalized_ordered_transp_per_nucl`
        * :c:data:`ao_expo`
-       * :c:data:`ao_expo_cgtos_ord_transp`
-       * :c:data:`ao_expo_im`
        * :c:data:`ao_expo_ordered_transp`
        * :c:data:`ao_expo_ordered_transp_per_nucl`
-       * :c:data:`ao_expo_phase`
-       * :c:data:`ao_expo_pw`
-
- 
-.. c:var:: ao_shell
-
-
-    File : :file:`ao_basis/aos.irp.f`
-
-    .. code:: fortran
-
-        integer, allocatable	:: ao_shell	(ao_num)
-
-
-    Index of the shell to which the AO corresponds
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ao_num`
-       * :c:data:`shell_ang_mom`
-       * :c:data:`shell_num`
-
 
  
 .. c:var:: cart_to_sphe_0
@@ -927,17 +849,10 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`ao_2e_cgtos_schwartz`
        * :c:data:`ao_integrals_n_e`
-       * :c:data:`ao_integrals_n_e_cgtos`
        * :c:data:`ao_integrals_n_e_per_atom`
-       * :c:data:`ao_integrals_pt_chrg`
-       * :c:data:`ao_two_e_integral_alpha`
-       * :c:data:`ao_two_e_integral_erf_schwartz`
        * :c:data:`ao_two_e_integral_schwartz`
-       * :c:data:`ao_two_e_integrals_erf_in_map`
        * :c:data:`ao_two_e_integrals_in_map`
-       * :c:data:`cholesky_ao_num`
        * :c:data:`gauleg_t2`
 
  
@@ -966,17 +881,10 @@ Providers
     .. hlist::
        :columns: 3
 
-       * :c:data:`ao_2e_cgtos_schwartz`
        * :c:data:`ao_integrals_n_e`
-       * :c:data:`ao_integrals_n_e_cgtos`
        * :c:data:`ao_integrals_n_e_per_atom`
-       * :c:data:`ao_integrals_pt_chrg`
-       * :c:data:`ao_two_e_integral_alpha`
-       * :c:data:`ao_two_e_integral_erf_schwartz`
        * :c:data:`ao_two_e_integral_schwartz`
-       * :c:data:`ao_two_e_integrals_erf_in_map`
        * :c:data:`ao_two_e_integrals_in_map`
-       * :c:data:`cholesky_ao_num`
        * :c:data:`gauleg_t2`
 
  
@@ -1007,6 +915,7 @@ Providers
     .. hlist::
        :columns: 3
 
+       * :c:data:`nucl_aos_transposed`
        * :c:data:`nucl_list_shell_aos`
 
  
@@ -1029,6 +938,7 @@ Providers
 
        * :c:data:`ao_nucl`
        * :c:data:`ao_num`
+       * :c:data:`nucl_aos`
        * :c:data:`nucl_n_aos`
        * :c:data:`nucl_num`
 
@@ -1133,74 +1043,6 @@ Providers
 
 
  
-.. c:var:: use_cgtos
-
-
-    File : :file:`ao_basis/cgtos.irp.f`
-
-    .. code:: fortran
-
-        logical	:: use_cgtos	
-
-
-    If true, use cgtos for AO integrals
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ezfio_filename`
-       * :c:data:`mpi_master`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ao_deriv2_x`
-       * :c:data:`ao_integrals_n_e`
-       * :c:data:`ao_overlap`
-       * :c:data:`ao_two_e_integral_alpha`
-       * :c:data:`ao_two_e_integral_schwartz`
-       * :c:data:`ao_two_e_integrals_in_map`
-       * :c:data:`cholesky_ao_num`
-
- 
-.. c:var:: use_cosgtos
-
-
-    File : :file:`ao_basis/cosgtos.irp.f`
-
-    .. code:: fortran
-
-        logical	:: use_cosgtos	
-
-
-    If true, use cosgtos for AO integrals
-
-    Needs:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ezfio_filename`
-       * :c:data:`mpi_master`
-
-    Needed by:
-
-    .. hlist::
-       :columns: 3
-
-       * :c:data:`ao_deriv2_x`
-       * :c:data:`ao_integrals_n_e`
-       * :c:data:`ao_overlap`
-       * :c:data:`ao_two_e_integral_alpha`
-       * :c:data:`ao_two_e_integral_schwartz`
-       * :c:data:`ao_two_e_integrals_in_map`
-       * :c:data:`cholesky_ao_num`
-
- 
  
 Subroutines / functions 
 ----------------------- 
@@ -1227,7 +1069,7 @@ Subroutines / functions
 
     .. code:: fortran
 
-        double precision function ao_value(i, r)
+        double precision function ao_value(i,r)
 
 
     Returns the value of the i-th ao at point $\textbf{r}$
@@ -1252,17 +1094,15 @@ Subroutines / functions
 
     .. code:: fortran
 
-        subroutine give_all_aos_and_grad_and_lapl_at_r(r, aos_array, aos_grad_array, aos_lapl_array)
+        subroutine give_all_aos_and_grad_and_lapl_at_r(r,aos_array,aos_grad_array,aos_lapl_array)
 
 
-    
     input  : r(1) ==> r(1) = x, r(2) = y, r(3) = z
     
     output :
     
     * aos_array(i) = ao(i) evaluated at $\textbf{r}$
     * aos_grad_array(1,i) = $\nabla_x$ of the ao(i) evaluated at $\textbf{r}$
-    
 
     Needs:
 
@@ -1294,10 +1134,9 @@ Subroutines / functions
 
     .. code:: fortran
 
-        subroutine give_all_aos_and_grad_at_r(r, aos_array, aos_grad_array)
+        subroutine give_all_aos_and_grad_at_r(r,aos_array,aos_grad_array)
 
 
-    
     input : r(1) ==> r(1) = x, r(2) = y, r(3) = z
     
     output :
@@ -1336,14 +1175,12 @@ Subroutines / functions
 
     .. code:: fortran
 
-        subroutine give_all_aos_at_r(r, tmp_array)
+        subroutine give_all_aos_at_r(r,aos_array)
 
 
-    
     input  : r == r(1) = x and so on
     
-    output : tmp_array(i) = aos(i) evaluated in $\textbf{r}$
-    
+    output : aos_array(i) = aos(i) evaluated in $\textbf{r}$
 
     Needs:
 
@@ -1375,7 +1212,7 @@ Subroutines / functions
 
     .. code:: fortran
 
-        double precision function primitive_value(i, j, r)
+        double precision function primitive_value(i,j,r)
 
 
     Returns the value of the j-th primitive of the i-th |AO| at point $\textbf{r}

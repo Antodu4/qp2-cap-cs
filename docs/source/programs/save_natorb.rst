@@ -25,7 +25,6 @@ save_natorb
  .. hlist:: 
     :columns: 3 
  
-    * :c:data:`nucl_coord` 
     * :c:data:`read_wf` 
  
  Calls: 

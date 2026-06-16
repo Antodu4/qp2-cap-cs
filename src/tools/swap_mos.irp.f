@@ -5,9 +5,7 @@ program swap_mos
   END_DOC
   integer                        :: i,j, i1, i2
   double precision               :: x
-  print *, 'Swaps molecular orbitals i and j.'
-  print *, ''
-  print *, 'Input i and j:'
+  print *,  'MOs to swap?'
   read(*,*) i1, i2
   do i=1,ao_num
     x = mo_coef(i,i1)
@@ -15,5 +13,5 @@ program swap_mos
     mo_coef(i,i2) = x
   enddo
   call save_mos
-
+  
 end

@@ -92,12 +92,6 @@ EZFIO parameters
  
     Default: 0.0
  
-.. option:: pt2_min_parallel_tasks
- 
-    Minimum number of tasks in PT2 calculation
- 
-    Default: 1
- 
 .. option:: pt2_relative_error
  
     Stop stochastic |PT2| when the relative error is smaller than `pT2_relative_error`
@@ -112,7 +106,7 @@ EZFIO parameters
  
 .. option:: h0_type
  
-    Type of denominator in PT2. [EN | CFG | HF]
+    Type of denominator in PT2. [EN | SOP | HF]
  
     Default: EN
  
@@ -224,6 +218,8 @@ Subroutines / functions
     .. hlist::
        :columns: 3
 
+       * :c:data:`elec_alpha_num`
+       * :c:data:`elec_beta_num`
        * :c:data:`h_apply_buffer_allocated`
        * :c:data:`n_det`
        * :c:data:`n_int`
@@ -261,6 +257,7 @@ Subroutines / functions
        * :c:data:`n_det`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -296,6 +293,7 @@ Subroutines / functions
        * :c:data:`n_det`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -331,6 +329,7 @@ Subroutines / functions
        * :c:data:`n_det`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -366,6 +365,7 @@ Subroutines / functions
        * :c:data:`n_det`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -401,6 +401,7 @@ Subroutines / functions
        * :c:data:`n_det`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -436,6 +437,7 @@ Subroutines / functions
        * :c:data:`n_det`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -470,6 +472,7 @@ Subroutines / functions
        * :c:data:`mo_num`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -506,6 +509,7 @@ Subroutines / functions
        * :c:data:`mo_num`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -542,6 +546,7 @@ Subroutines / functions
        * :c:data:`mo_num`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -578,6 +583,7 @@ Subroutines / functions
        * :c:data:`mo_num`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -614,6 +620,7 @@ Subroutines / functions
        * :c:data:`mo_num`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -650,6 +657,7 @@ Subroutines / functions
        * :c:data:`mo_num`
        * :c:data:`n_det_generators`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_det_generators`
        * :c:data:`psi_selectors`
 
@@ -729,6 +737,7 @@ Subroutines / functions
 
        * :c:data:`mo_num`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_selectors`
        * :c:data:`psi_selectors_size`
        * :c:data:`selection_criterion`
@@ -774,6 +783,7 @@ Subroutines / functions
 
        * :c:data:`mo_num`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_selectors`
        * :c:data:`psi_selectors_size`
 
@@ -819,6 +829,7 @@ Subroutines / functions
 
        * :c:data:`mo_num`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_energy`
        * :c:data:`psi_selectors`
        * :c:data:`psi_selectors_size`
@@ -865,6 +876,7 @@ Subroutines / functions
        * :c:data:`fock_matrix_mo`
        * :c:data:`mo_num`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_selectors`
        * :c:data:`psi_selectors_size`
        * :c:data:`ref_bitmask`
@@ -910,6 +922,7 @@ Subroutines / functions
 
        * :c:data:`mo_num`
        * :c:data:`n_det_selectors`
+       * :c:data:`n_int`
        * :c:data:`psi_selectors`
        * :c:data:`psi_selectors_size`
        * :c:data:`selection_criterion`

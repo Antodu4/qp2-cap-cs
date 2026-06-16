@@ -41,7 +41,7 @@ program fcidump
   integer(key_kind), allocatable :: keys(:)
   double precision, allocatable  :: values(:)
   integer(cache_map_size_kind)   :: n_elements, n_elements_max
-  PROVIDE all_mo_integrals
+  PROVIDE mo_two_e_integrals_in_map
 
   double precision :: get_two_e_integral, integral
 

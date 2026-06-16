@@ -13,6 +13,8 @@ module Ao_basis : sig
       ao_coef         : AO_coef.t array;
       ao_expo         : AO_expo.t array;
       ao_cartesian    : bool;
+      ao_normalized   : bool;
+      primitives_normalized : bool;
     } [@@deriving sexp]
   ;;
   val read : unit -> t option
@@ -34,6 +36,8 @@ end = struct
       ao_coef         : AO_coef.t array;
       ao_expo         : AO_expo.t array;
       ao_cartesian    : bool;
+      ao_normalized   : bool;
+      primitives_normalized : bool;
     } [@@deriving sexp]
   ;;
 
@@ -54,70 +58,52 @@ end = struct
   ;;
 
   let read_ao_prim_num () =
-    if Ezfio.has_ao_basis_ao_prim_num () then
-      Ezfio.get_ao_basis_ao_prim_num ()
-      |> Ezfio.flattened_ezfio
-      |> Array.map AO_prim_number.of_int
-    else
-      [||]
+    Ezfio.get_ao_basis_ao_prim_num ()
+    |> Ezfio.flattened_ezfio
+    |> Array.map AO_prim_number.of_int
   ;;
 
   let read_ao_prim_num_max () =
-    if Ezfio.has_ao_basis_ao_prim_num () then
-      Ezfio.get_ao_basis_ao_prim_num ()
-      |> Ezfio.flattened_ezfio
-      |> Array.fold_left (fun x y -> if x>y then x else y) 0
-      |> AO_prim_number.of_int
-    else
-      AO_prim_number.of_int 0
+    Ezfio.get_ao_basis_ao_prim_num ()
+    |> Ezfio.flattened_ezfio
+    |> Array.fold_left (fun x y -> if x>y then x else y) 0
+    |> AO_prim_number.of_int
   ;;
 
   let read_ao_nucl () =
-    if Ezfio.has_ao_basis_ao_nucl () then
-      let nmax = Nucl_number.get_max () in
-      Ezfio.get_ao_basis_ao_nucl ()
-      |> Ezfio.flattened_ezfio
-      |> Array.map (fun x-> Nucl_number.of_int ~max:nmax x)
-    else
-      [||]
+    let nmax = Nucl_number.get_max () in
+    Ezfio.get_ao_basis_ao_nucl ()
+    |> Ezfio.flattened_ezfio
+    |> Array.map (fun x-> Nucl_number.of_int ~max:nmax x)
   ;;
 
   let read_ao_power () =
-    if Ezfio.has_ao_basis_ao_power () then
-      let x = Ezfio.get_ao_basis_ao_power () in
-      let dim = x.Ezfio.dim.(0) in
-      let data = Ezfio.flattened_ezfio x in
-      let result = Array.init dim (fun x -> "") in
-      for i=1 to dim
-      do
-        if (data.(i-1) > 0) then
-          result.(i-1) <- result.(i-1)^"x"^(string_of_int data.(i-1));
-        if (data.(dim+i-1) > 0) then
-          result.(i-1) <- result.(i-1)^"y"^(string_of_int data.(dim+i-1));
-        if (data.(2*dim+i-1) > 0) then
-          result.(i-1) <- result.(i-1)^"z"^(string_of_int data.(2*dim+i-1));
-      done;
-      Array.map Angmom.Xyz.of_string result
-    else
-      [||]
+    let x = Ezfio.get_ao_basis_ao_power () in
+    let dim = x.Ezfio.dim.(0) in
+    let data = Ezfio.flattened_ezfio x in
+    let result = Array.init dim (fun x -> "") in
+    for i=1 to dim
+    do
+      if (data.(i-1) > 0) then
+        result.(i-1) <- result.(i-1)^"x"^(string_of_int data.(i-1));
+      if (data.(dim+i-1) > 0) then
+        result.(i-1) <- result.(i-1)^"y"^(string_of_int data.(dim+i-1));
+      if (data.(2*dim+i-1) > 0) then
+        result.(i-1) <- result.(i-1)^"z"^(string_of_int data.(2*dim+i-1));
+    done;
+    Array.map Angmom.Xyz.of_string result
   ;;
 
   let read_ao_coef () =
-    if Ezfio.has_ao_basis_ao_coef () then
-      Ezfio.get_ao_basis_ao_coef ()
-      |> Ezfio.flattened_ezfio
-      |> Array.map AO_coef.of_float
-    else
-      [||]
+    Ezfio.get_ao_basis_ao_coef ()
+    |> Ezfio.flattened_ezfio
+    |> Array.map AO_coef.of_float
   ;;
 
   let read_ao_expo () =
-    if Ezfio.has_ao_basis_ao_expo () then
-      Ezfio.get_ao_basis_ao_expo ()
-      |> Ezfio.flattened_ezfio
-      |> Array.map AO_expo.of_float
-    else
-      [||]
+    Ezfio.get_ao_basis_ao_expo ()
+    |> Ezfio.flattened_ezfio
+    |> Array.map AO_expo.of_float
   ;;
 
   let read_ao_cartesian () =
@@ -127,6 +113,24 @@ end = struct
        |> Ezfio.set_ao_basis_ao_cartesian
     ;
     Ezfio.get_ao_basis_ao_cartesian ()
+  ;;
+
+  let read_ao_normalized () =
+    if not (Ezfio.has_ao_basis_ao_normalized()) then
+       get_default "ao_normalized"
+       |> bool_of_string
+       |> Ezfio.set_ao_basis_ao_normalized
+    ;
+    Ezfio.get_ao_basis_ao_normalized ()
+  ;;
+
+  let read_primitives_normalized () =
+    if not (Ezfio.has_ao_basis_primitives_normalized()) then
+       get_default "primitives_normalized"
+       |> bool_of_string
+       |> Ezfio.set_ao_basis_primitives_normalized
+    ;
+    Ezfio.get_ao_basis_primitives_normalized ()
   ;;
 
   let to_long_basis b =
@@ -191,6 +195,8 @@ end = struct
          ao_coef         ;
          ao_expo         ;
          ao_cartesian    ;
+         ao_normalized   ;
+         primitives_normalized ;
        } = b
      in
      write_md5 b ;
@@ -223,6 +229,8 @@ end = struct
      ~rank:2 ~dim:[| ao_num ; 3 |] ~data:ao_power) ;
 
      Ezfio.set_ao_basis_ao_cartesian(ao_cartesian);
+     Ezfio.set_ao_basis_ao_normalized(ao_normalized);
+     Ezfio.set_ao_basis_primitives_normalized(primitives_normalized);
 
      let ao_coef =
       Array.to_list ao_coef
@@ -254,6 +262,8 @@ end = struct
             ao_coef         = read_ao_coef () ;
             ao_expo         = read_ao_expo () ;
             ao_cartesian    = read_ao_cartesian () ;
+            ao_normalized   = read_ao_normalized () ;
+            primitives_normalized   = read_primitives_normalized () ;
           }
         in
         to_md5 result
@@ -364,6 +374,8 @@ end = struct
       { ao_basis = name ;
         ao_num ; ao_prim_num ; ao_prim_num_max ; ao_nucl ;
         ao_power ; ao_coef ; ao_expo ; ao_cartesian ;
+        ao_normalized = bool_of_string @@ get_default "ao_normalized";
+        primitives_normalized = bool_of_string @@ get_default "primitives_normalized";
         }
   ;;
 
@@ -418,6 +430,14 @@ Cartesian coordinates (6d,10f,...) ::
 
   ao_cartesian = %s
 
+Use normalized primitive functions ::
+
+  primitives_normalized = %s
+
+Use normalized basis functions ::
+
+  ao_normalized = %s
+
 Basis set (read-only) ::
 
 %s
@@ -431,6 +451,8 @@ Basis set (read-only) ::
 
 "   (AO_basis_name.to_string b.ao_basis)
     (string_of_bool b.ao_cartesian)
+    (string_of_bool b.primitives_normalized)
+    (string_of_bool b.ao_normalized)
     (Basis.to_string short_basis
        |> String_ext.split ~on:'\n'
        |> list_map (fun x-> "  "^x)
@@ -467,6 +489,8 @@ ao_power                = %s
 ao_coef                 = %s
 ao_expo                 = %s
 ao_cartesian            = %s
+ao_normalized           = %s
+primitives_normalized   = %s
 md5                     = %s
 "
     (AO_basis_name.to_string b.ao_basis)
@@ -483,6 +507,8 @@ md5                     = %s
     (b.ao_expo  |> Array.to_list |> list_map AO_expo.to_string
       |> String.concat ", ")
     (b.ao_cartesian |> string_of_bool)
+    (b.ao_normalized |> string_of_bool)
+    (b.primitives_normalized |> string_of_bool)
     (to_md5 b |> MD5.to_string )
 
   ;;

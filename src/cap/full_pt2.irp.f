@@ -201,3 +201,201 @@ subroutine full_pt2()
     print*,'val', val,nb
 
 end
+
+subroutine pt2_mat()
+
+    BEGIN_DOC
+    ! Computes the second-order perturbation correction (PT2) to the CAP-CI energy.
+    !
+    ! Naïve version of unused code
+    END_DOC
+
+    implicit none
+
+    complex*16, allocatable :: aHi(:,:), aHa(:)
+    integer(bit_kind) :: Di(N_int,2), Dh1(N_int,2), Dh1p1(N_int,2), Dh1h2(N_int,2), Dh1h2p1(N_int,2), Dh1h2p1p2(N_int,2)
+    integer(bit_kind), allocatable :: alpha(:,:,:)
+    integer :: h1,p1,h2,p2,s1,s2,k, degree, j,l,s, exc(0:2,2,2)
+    integer :: h1bis,p1bis,h2bis,p2bis,s1bis,s2bis
+    integer :: n, ns, nd, i, a, nb, start_h2, start_p2
+    logical :: ok
+    logical, external :: is_in_wavefunction
+    double precision :: wij, hij, phase
+    complex*16 :: pt2, psi_h_a
+    double precision :: diag_H_mat_elem, diag_H_mat_elem_cap
+
+    ! Singles
+    ns  = elec_alpha_num * (mo_num - elec_alpha_num)
+    ns += elec_beta_num  * (mo_num - elec_beta_num)
+
+    ! Doubles
+    nd = elec_alpha_num * (mo_num - elec_alpha_num) * (elec_alpha_num-1) * (mo_num - elec_alpha_num - 1)
+    nd += elec_beta_num  * (mo_num - elec_beta_num)  * (elec_beta_num -1) * (mo_num - elec_beta_num  - 1)
+    nd += elec_alpha_num * (mo_num - elec_alpha_num) * elec_beta_num  * (mo_num - elec_beta_num)
+
+    n = N_det*(ns + nd)
+
+    allocate(aHi(n,N_det),aHa(n),alpha(N_int,2,n))
+
+    aHi = (0d0,0d0)
+
+    nb = 0
+    k = 1
+    do i = 1, N_det
+        Di = psi_det(:,:,i)
+        !print*,i
+        !call print_det(Di,N_int)
+        do s1 = 1, 2
+            do h1 = 1, mo_num
+                call apply_hole(Di, s1, h1, Dh1, ok, N_int)
+                if (.not. ok) cycle
+                do p1 = 1, mo_num
+                    call apply_particle(Dh1, s1, p1, Dh1p1, ok, N_int)
+                    if (.not. ok) cycle
+                    if (is_in_wavefunction(Dh1p1,N_int)) cycle
+
+                    !print*,h1,p1,s1
+                    !call print_det(Dh1p1,N_int)
+                    do j = 1, k-1
+                        ok = .False.
+                        !print*,'check'
+                        !call print_det(alpha(1,1,j),N_int)
+                        do s = 1, 2
+                            do l = 1, N_int
+                                !print*,alpha(l,s,j), Dh1p1(l,s),  alpha(l,s,j) /= Dh1p1(l,s)
+                                if (alpha(l,s,j) /= Dh1p1(l,s)) then
+                                    ok = .True.
+                                    exit
+                                endif
+                            enddo
+                        enddo
+                        !print*,'ok',ok
+                        if (.not. ok) exit
+                    enddo
+                    if ((.not. ok) .and. k > 1) cycle
+                    !print*,ok
+
+                    !print*,h1,p1,s1
+                    !call print_det(Dh1p1,N_int)
+                    !print*,''
+                    alpha(:,:,k) = Dh1p1(:,:)
+                    do j = 1, N_det
+                        call get_excitation_degree(psi_det(1,1,j), Dh1p1, degree, N_int)
+                        if (degree == 1) then
+                            call get_excitation(psi_det(1,1,j), Dh1p1, exc, degree, phase, N_int)
+                            call decode_exc(exc,degree,h1bis,p1bis,h2bis,p2bis,s1bis,s2bis)
+                            call i_W_j_single_spin_cap(psi_det(1,1,j),Dh1p1,N_int,s1bis,wij)
+                        else
+                            wij = 0d0
+                        endif
+                        !wij = 0d0
+                        call i_H_j(psi_det(1,1,j), Dh1p1, N_int, hij)
+                        aHi(k,j) = dcmplx(hij,wij)
+                    enddo
+                    !call i_H_j(Dh1p1, Dh1p1, N_int, hij)
+                    aha(k) = dcmplx(diag_H_mat_elem(Dh1p1,N_int), diag_H_mat_elem_cap(Dh1p1,N_int))
+                    k += 1
+                    nb += 1
+                enddo
+            enddo
+        enddo
+    enddo
+    print*,'nb S',nb
+
+    do i = 1, N_det
+        Di = psi_det(:,:,i)
+        print*,i
+        !call print_det(Di,N_int)
+        do s1 = 1, 2
+            do s2 = s1, 2
+                do h1 = 1, mo_num
+                    call apply_hole(Di, s1, h1, Dh1, ok, N_int)
+                    if (.not. ok) cycle
+                    if (s1 == s2) then
+                        start_h2 = h1 + 1
+                    else
+                        start_h2 = 1
+                    endif
+                    do h2 = start_h2, mo_num
+                        call apply_hole(Dh1, s2, h2, Dh1h2, ok, N_int)
+                        if (.not. ok) cycle
+                        do p1 = 1, mo_num
+                            call apply_particle(Dh1h2, s1, p1, Dh1h2p1, ok, N_int)
+                            if (.not. ok) cycle
+                            if (s1 == s2) then
+                                start_p2 = p1 + 1
+                            else
+                                start_p2 = 1
+                            endif
+                            do p2 = start_p2, mo_num
+                                call apply_particle(Dh1h2p1, s2, p2, Dh1h2p1p2, ok, N_int)
+                                if (.not. ok) cycle
+                                call get_excitation_degree(Di, Dh1h2p1p2, degree, N_int)
+                                if (degree /= 2) cycle
+                                if (is_in_wavefunction(Dh1h2p1p2,N_int)) cycle
+
+                                !call debug_det(Dh1h2p1p2,N_int)
+                                do j = 1, k-1
+                                    ok = .False.
+                                    !print*,'check'
+                                    !call print_det(alpha(1,1,j),N_int)
+                                    do s = 1, 2
+                                        do l = 1, N_int
+                                            !print*,alpha(l,s,j), Dh1p1(l,s),  alpha(l,s,j) /= Dh1p1(l,s)
+                                            if (alpha(l,s,j) /= Dh1h2p1p2(l,s)) then
+                                                ok = .True.
+                                                exit
+                                            endif
+                                        enddo
+                                    enddo
+                                    !print*,'ok',ok
+                                    if (.not. ok) exit
+                                enddo
+                                if ((.not. ok) .and. k > 1) cycle
+
+
+                                alpha(:,:,k) = Dh1h2p1p2(:,:)
+                                do j = 1, N_det
+                                    call get_excitation_degree(psi_det(1,1,j), Dh1h2p1p2, degree, N_int)
+                                    if (degree == 1) then
+                                        call get_excitation(psi_det(1,1,j), Dh1h2p1p2, exc, degree, phase, N_int)
+                                        call decode_exc(exc,degree,h1bis,p1bis,h2bis,p2bis,s1bis,s2bis)
+                                        call i_W_j_single_spin_cap(psi_det(1,1,j),Dh1h2p1p2,N_int,s1bis,wij)
+                                    else
+                                        wij = 0d0
+                                    endif
+                                    !wij = 0d0
+                                    call i_H_j(psi_det(1,1,j), Dh1h2p1p2, N_int, hij)
+                                    aHi(k,j) = dcmplx(hij,wij)
+                                enddo
+                                call i_H_j(Dh1h2p1p2, Dh1h2p1p2, N_int, hij)
+                                !aha(k) = dcmplx(hij,0d0) !dcmplx(diag_H_mat_elem(Dh1p1,N_int), diag_H_mat_elem_cap(Dh1p1,N_int))
+                                aha(k) = dcmplx(diag_H_mat_elem(Dh1h2p1p2,N_int), diag_H_mat_elem_cap(Dh1h2p1p2,N_int))
+                                k += 1
+                                nb += 1
+                            enddo
+                        enddo
+                    enddo
+                enddo
+            enddo
+        enddo
+        !print*,k-ns-1
+    enddo
+    print*,'nb S+D',nb
+
+    pt2 = (0d0,0d0)
+    do a = 1, nb
+        !print*,a
+        !call print_det(alpha(1,1,a),N_int)
+        psi_h_a = (0d0,0d0)
+        do i = 1, N_det
+            psi_h_a += psi_cap_coef(i,1) * aHi(a,i)
+        enddo
+        !print*,aHi(a,:)
+        !print*,psi_h_a!**2 / (psi_energy(1) - aHa(a))
+        pt2 += psi_h_a**2 / (psi_energy_cap(1) - aHa(a))
+    enddo
+    print*,'pt2:',pt2,nb
+
+
+end

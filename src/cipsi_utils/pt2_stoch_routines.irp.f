@@ -165,7 +165,7 @@ subroutine ZMQ_pt2(E, pt2_data, pt2_data_err, relative_error, N_in)
       state_average_weight(pt2_stoch_istate) = 1.d0
       TOUCH state_average_weight pt2_stoch_istate selection_weight
 
-      PROVIDE nproc pt2_F mo_two_e_integrals_in_map mo_integrals_cache mo_two_e_integrals_jj_exchange mo_two_e_integrals_jj_anti mo_two_e_integrals_jj big_array_exchange_integrals big_array_coulomb_integrals mo_one_e_integrals pt2_w
+      PROVIDE nproc pt2_F mo_two_e_integrals_in_map mo_one_e_integrals pt2_w
       PROVIDE psi_selectors pt2_u pt2_J pt2_R
       call new_parallel_job(zmq_to_qp_run_socket, zmq_socket_pull, 'pt2')
 
@@ -212,7 +212,6 @@ subroutine ZMQ_pt2(E, pt2_data, pt2_data_err, relative_error, N_in)
           ipos += 1
         endif
       enddo
-      call write_int(6,pt2_stoch_istate,'State')
       call write_int(6,sum(pt2_F),'Number of tasks')
       call write_int(6,ipos,'Number of fragmented tasks')
 
@@ -465,6 +464,8 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   pt2_data_err % pt2(pt2_stoch_istate) = huge(1.)
   pt2_data % pt2_im(pt2_stoch_istate) = 0d0!-huge(1.)
   pt2_data_err % pt2_im(pt2_stoch_istate) = 0d0!huge(1.)
+  pt2_data % pt2_norm(pt2_stoch_istate) = 0d0!-huge(1.)
+  pt2_data_err % pt2_norm(pt2_stoch_istate) = 0d0!huge(1.)
   pt2_data % variance(pt2_stoch_istate) = huge(1.)
   pt2_data_err % variance(pt2_stoch_istate) = huge(1.)
   pt2_data % overlap(:,pt2_stoch_istate) = 0.d0
@@ -954,7 +955,7 @@ END_PROVIDER
    do t=1, pt2_N_teeth
      tooth_width = tilde_cW(pt2_n_0(t+1)) - tilde_cW(pt2_n_0(t))
      if (tooth_width == 0.d0) then
-       tooth_width = max(1.d-15,sum(tilde_w(pt2_n_0(t):pt2_n_0(t+1))))
+       tooth_width = sum(tilde_w(pt2_n_0(t):pt2_n_0(t+1)))
      endif
      ASSERT(tooth_width > 0.d0)
      do i=pt2_n_0(t)+1, pt2_n_0(t+1)

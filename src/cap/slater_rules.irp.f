@@ -2,8 +2,17 @@ subroutine i_W_j_single_spin_cap(key_i,key_j,Nint,spin,wij)
   use bitmasks
   implicit none
   BEGIN_DOC
-  ! Returns $\langle i|W|j \rangle$ where $i$ and $j$ are determinants differing by
-  ! a single excitation.
+  ! Returns -eta_cap * <i|W|j> for a single spin excitation between determinants i and j.
+  !
+  ! Only the contribution from spin channel `spin` (1=alpha, 2=beta) is computed:
+  !   wij = -eta_cap * mo_ints_cap_{spin}(hole, particle) * phase
+  !
+  ! Inputs:
+  !   key_i(Nint,2), key_j(Nint,2) : bitmask representations of determinants i and j
+  !   Nint                          : number of integers per spin-orbital string
+  !   spin                          : spin channel of the excitation (1=alpha, 2=beta)
+  ! Output:
+  !   wij : -eta_cap * <i|W|j> for the given spin channel
   END_DOC
   integer, intent(in)            :: Nint, spin
   integer(bit_kind), intent(in)  :: key_i(Nint,2), key_j(Nint,2)
@@ -25,7 +34,16 @@ double precision function diag_H_mat_elem_cap(det_in,Nint)
   use bitmasks
   implicit none
   BEGIN_DOC
-  ! Computes $\langle i|W|i \rangle$.
+  ! Returns -eta_cap * <i|W|i>, the diagonal CAP contribution to H + i*eta*W.
+  !
+  ! Sums the CAP MO integrals over occupied alpha and beta orbitals, then
+  ! multiplies by -eta_cap:
+  !   result = -eta_cap * ( sum_{p in occ_alpha} w^alpha_{pp}
+  !                       + sum_{p in occ_beta}  w^beta_{pp} )
+  !
+  ! Input:
+  !   det_in(Nint,2) : bitmask representation of the determinant
+  !   Nint           : number of integers per spin-orbital string
   END_DOC
   integer,intent(in)             :: Nint
   integer(bit_kind),intent(in)   :: det_in(Nint,2)

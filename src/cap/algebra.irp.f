@@ -47,6 +47,160 @@ subroutine qr_decomposition_c(A,lda,m,n)
 
 end
 
+subroutine normalize_xt_a_x(A,lda,X,ldx,n)
+
+  implicit none
+
+  integer, intent(in) :: lda, ldx, n
+  complex*16, intent(in) :: A(lda,n)
+  complex*16, intent(inout) :: X(ldx,n)
+
+  complex*16, allocatable :: A_cp(:,:), e(:), tmp(:,:), X_tmp(:,:), eigvec(:,:), diag(:,:)
+  complex*16 :: res
+  integer :: info, i,j
+
+  allocate(A_cp(n,n),e(n),tmp(n,n),X_tmp(n,n),eigvec(n,n),diag(n,n))
+
+  A_cp(1:n,1:n) = A(1:n,1:n)
+  print*,'A'
+  do i = 1,n
+    write(*,'(100(ES12.3))') A_cp(i,:)
+  enddo
+  print*,''
+  do i = 1, n
+    call normalize_c(A_cp(:,i),n)
+  enddo
+  print*,'A'
+  do i = 1,n
+    write(*,'(100(ES12.3))') A_cp(i,:)
+  enddo
+  print*,''
+  call diag_general_complex(e,eigvec,A_cp,n,n,info)
+  call qr_decomposition_c(eigvec,size(eigvec,1),n,n)
+  !print*,'e',e
+  !do i = 1,n
+  !  write(*,'(100(ES12.3))') eigvec(i,:)
+  !enddo
+  !print*,''
+
+  diag = (0d0,0d0)
+  do i = 1, n
+    if (cdabs(e(i)) > 1d-12) then
+      diag(i,i) = e(i)
+    endif
+  enddo
+
+  call zgemm('N','N',n,n,n, (1d0, 0d0), eigvec, n, diag, n, (0d0,0d0), tmp, n)
+  call zgemm('N','T',n,n,n, (1d0, 0d0), tmp, n, eigvec, n, (0d0,0d0), X_tmp, n)
+  print*,'bt'
+  do i = 1, n
+    write(*,'(100(ES12.3))') X_tmp(i,:)
+  enddo
+  print*,''
+
+ do i = 1, n
+    if (cdabs(e(i)) > 1d-12) then
+      diag(i,i) = (1d0,0d0) / cdsqrt(e(i))
+    endif
+  enddo
+
+  call zgemm('N','N',n,n,n, (1d0, 0d0), eigvec, n, diag, n, (0d0,0d0), tmp, n)
+  call zgemm('N','T',n,n,n, (1d0, 0d0), tmp, n, eigvec, n, (0d0,0d0), X_tmp, n)
+  X(1:n,1:n) = X_tmp(1:n,1:n)
+
+  call zgemm('T','N',n,n,n, (1d0, 0d0), X, ldx, A, lda, (0d0,0d0), tmp, n)
+  call zgemm('N','N',n,n,n, (1d0, 0d0), tmp, n, X, ldx, (0d0,0d0), X_tmp, n)
+!
+!  print*,'error'
+  do i = 1, n
+    X_tmp(i,i) = X_tmp(i,i) - (1d0,0d0)
+!    write(*,'(100(ES12.3))') X_tmp(i,:)
+  enddo
+
+  print*,'check', maxval(cdabs(X_tmp))
+
+ double precision, allocatable :: dA(:,:), dX(:,:)
+ allocate(dA(n,n), dX(n,n))
+ do j = 1, n
+   do i = 1, n
+     dA(i,j) = dble(A(i,j))
+   enddo
+   da(j,j) = da(j,j) + 1d0
+ enddo
+ do i = 1, n
+   write(*,'(100(ES12.3))') da(i,:)
+ enddo
+ dX = 0d0
+ call dnormalize_xt_a_x(dA,dX,n)
+
+ deallocate(tmp,x_tmp,diag,e,eigvec)
+
+end
+
+subroutine dnormalize_xt_a_x(A, X, n)
+  implicit none
+
+  integer, intent(in) :: n
+  double precision, intent(in) :: A(n, n)
+  double precision, intent(inout) :: X(n, n)
+
+  double precision, allocatable :: A_cp(:,:), e(:), tmp(:,:), X_tmp(:,:), eigvec(:,:), diag(:,:)
+  double precision :: res
+  integer :: i
+
+  allocate(A_cp(n, n), e(n), tmp(n, n), X_tmp(n, n), eigvec(n, n), diag(n, n))
+
+  A_cp(1:n, 1:n) = A(1:n, 1:n)
+
+  print*,1
+  do i = 1, n
+    write(*, '(100(ES12.3))') A_cp(i, :)
+  enddo
+  print*, ''
+
+  call lapack_diag(e, eigvec, A_cp, n, n)
+
+  diag = 0d0
+  do i = 1, n
+      if (dabs(e(i)) > 1d-12) then
+        diag(i, i) = e(i)
+      endif
+  enddo
+
+  call dgemm('N', 'N', n, n, n, 1d0, eigvec, n, diag, n, 0d0, tmp, n)
+  call dgemm('N', 'T', n, n, n, 1d0, tmp, n, eigvec, n, 0d0, X_tmp, n)
+
+  print*,2
+  do i = 1, n
+    write(*, '(100(ES12.3))') X_tmp(i, :)
+  enddo
+  print*, ''
+
+  write(*, '(A,100(ES12.3))') 'e',e(:)
+  do i = 1, n
+    if (e(i) > 1d-12) then
+      diag(i,i) = 1d0 / dsqrt(e(i))
+    endif
+  enddo
+
+  call dgemm('N','N',n,n,n, 1d0, eigvec, n, diag, n, 0d0, tmp, n)
+  call dgemm('N','T',n,n,n, 1d0, tmp, n, eigvec, n, 0d0, X_tmp, n)
+  X(1:n,1:n) = X_tmp(1:n,1:n)
+
+  call dgemm('T','N',n,n,n, 1d0, X, n, A, n, 0d0, tmp, n)
+  call dgemm('N','N',n,n,n, 1d0, tmp, n, X, n, 0d0, X_tmp, n)
+
+  print*,'error'
+  do i = 1, n
+    X_tmp(i,i) = X_tmp(i,i) - 1d0
+    write(*,'(100(ES12.3))') X_tmp(i,:)
+  enddo
+
+  print*,'check', maxval(dabs(X_tmp))
+
+
+end
+      
 subroutine modified_gram_schmidt_c(v,N_st,sze)
   implicit none
   BEGIN_DOC
@@ -194,7 +348,11 @@ end
 subroutine normalize_complex(u,sze)
   implicit none
   BEGIN_DOC
-  ! Normalizes u s.t. <u|u> = 1.0.
+  ! Normalizes u with respect to the Hermitian inner product <u|u> = sum_i |u_i|^2,
+  ! so that <u|u> = 1 on exit.
+  !
+  ! Note: uses the Hermitian norm (with complex conjugation), unlike normalize_c
+  ! which uses the c-inner product (no conjugation).
   END_DOC
 
   integer, intent(in) :: sze

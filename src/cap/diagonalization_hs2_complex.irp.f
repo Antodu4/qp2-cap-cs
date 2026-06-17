@@ -4,16 +4,24 @@ subroutine davidson_diag_hs2_complex(dets_in,u_in,s2_out,dim_in,energies,sze,N_s
   BEGIN_DOC
   ! Davidson diagonalization for CAP
   !
-  ! dets_in : bitmasks corresponding to determinants
+  ! dets_in   : bitmasks corresponding to determinants
   !
-  ! u_in : guess coefficients on the various states. Overwritten
-  !   on exit
+  ! u_in      : guess coefficients on the various states. Overwritten on exit
+  !             with the converged eigenvectors (c-normalized)
   !
-  ! dim_in : leftmost dimension of u_in
+  ! dim_in    : leftmost dimension of u_in
   !
-  ! sze : Number of determinants
+  ! sze       : number of determinants
   !
-  ! N_st : Number of eigenstates
+  ! N_st      : number of eigenstates to compute
+  !
+  ! N_st_diag : number of states used in the diagonalization (>= N_st)
+  !
+  ! energies  : (output) complex eigenvalues of H + i*eta*W for each state
+  !
+  ! s2_out    : (output) expectation value of S^2 for each state
+  !
+  ! converged : (output) .true. if the Davidson procedure converged
   !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC

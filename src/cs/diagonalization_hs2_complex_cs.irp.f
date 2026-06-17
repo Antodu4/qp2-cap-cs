@@ -2,18 +2,28 @@ subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,
   use bitmasks
   implicit none
   BEGIN_DOC
-  ! Davidson diagonalization.
+  ! Davidson diagonalization for Complex Scaling (CS)
   !
-  ! dets_in : bitmasks corresponding to determinants
+  ! Diagonalizes H_CS = e^{-i*theta} * (H + (e^{-i*theta} - 1) * T)
   !
-  ! u_in : guess coefficients on the various states. Overwritten
-  !   on exit
+  ! dets_in   : bitmasks corresponding to determinants
   !
-  ! dim_in : leftmost dimension of u_in
+  ! u_in      : guess coefficients on the various states. Overwritten on exit
+  !             with the converged eigenvectors (c-normalized)
   !
-  ! sze : Number of determinants
+  ! dim_in    : leftmost dimension of u_in
   !
-  ! N_st : Number of eigenstates
+  ! sze       : number of determinants
+  !
+  ! N_st      : number of eigenstates to compute
+  !
+  ! N_st_diag : number of states used in the diagonalization (>= N_st)
+  !
+  ! energies  : (output) complex eigenvalues of H_CS for each state
+  !
+  ! s2_out    : (output) expectation value of S^2 for each state
+  !
+  ! converged : (output) .true. if the Davidson procedure converged
   !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC

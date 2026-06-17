@@ -280,6 +280,7 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       h_cp = h
       call diag_general_complex(lambda,y,h_cp,size(h,1),shift2,info)
       call qr_decomposition_c(y,size(y,1),shift2,shift2)
+      print*,lambda(1:N_st)
 
       ! Compute Energy for each eigenvector
       ! -----------------------------------
@@ -295,6 +296,7 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       do k=1,shift2
         lambda(k) = h(k,k)
       enddo
+      print*,lambda(1:N_st)
 
       ! Express eigenvectors of h in the determinant basis
       ! --------------------------------------------------
@@ -440,3 +442,56 @@ subroutine hpsi_complex(v,u,N_st,sze,h_mat)
   enddo
 end
 
+subroutine check_energy(h,psi,N_st,sze)
+  implicit none
+
+  integer, intent(in) :: N_st, sze
+  complex*16, intent(in) :: h(sze,sze), psi(sze,N_st)
+
+  complex*16 :: res
+  complex*16, allocatable :: h_psi(:,:), energy(:)
+  integer :: i,j
+
+  allocate(h_psi(sze,N_st),energy(N_st))
+
+  call hpsi_complex(h_psi,psi,N_st,sze,h)
+
+  do j = 1, N_st
+    energy(j) = (0d0,0d0)
+    do i = 1, sze
+      energy(j) += CONJG(psi(i,j)) * h_psi(i,j)
+    enddo
+    call inner_product_complex(psi(1,j),psi(1,j),sze,res)
+    energy(j) = energy(j) / res + dcmplx(nuclear_repulsion,0d0)
+    write(*,'(I6,2(F18.10))') j, dble(energy(j)), dimag(energy(j))
+  enddo
+
+end
+
+subroutine check_c_energy(h,psi,N_st,sze)
+  implicit none
+
+  integer, intent(in) :: N_st, sze
+  complex*16, intent(in) :: h(sze,sze), psi(sze,N_st)
+
+  complex*16 ::norm
+  complex*16, allocatable :: h_psi(:,:), energy(:)
+  integer :: i,j
+
+  allocate(h_psi(sze,N_st),energy(N_st))
+
+  call hpsi_complex(h_psi,psi,N_st,sze,h)
+
+
+  do j = 1, N_st
+    energy(j) = (0d0,0d0)
+    do i = 1, sze
+      energy(j) += psi(i,j) * h_psi(i,j)
+    enddo
+    call inner_prod_c(psi(1,j),psi(1,j),sze,norm)
+    !call c_norm(psi(1,j),sze,norm)
+    energy(j) = energy(j) / norm + dcmplx(nuclear_repulsion,0d0)
+    write(*,'(I6,2(F18.10))') j, dble(energy(j)), dimag(energy(j))
+  enddo
+
+end

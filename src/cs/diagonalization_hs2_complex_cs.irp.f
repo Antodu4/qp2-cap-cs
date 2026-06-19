@@ -326,7 +326,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     enddo
     !$OMP END PARALLEL DO
 
-    call ortho_qr_complex(U,size(U,1),sze,shift2) 
+    call ortho_qr_complex(U,size(U,1),sze,N_st_diag) 
     !call qr_decomposition_c(U,size(U,1),sze,N_st_diag)
 
     ! Change the sign of the guess vectors to match with the ones of the guess
@@ -409,17 +409,17 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       ! Compute h_kl = <u_k | W_l> = <u_k| H |u_l>
       ! -------------------------------------------
 
-      call zgemm('C','N', shift2, shift2, sze                        &
-          (1.d0,0d0), U, size(U,1), W, size(W,1)                           &
+      call zgemm('C','N', shift2, shift2, sze,                        &
+          (1.d0,0d0), U, size(U,1), W, size(W,1),                           &
           (0.d0,0d0), h, size(h,1))
 
 !      call zgemm('T','N', shift2, shift2, sze,                       &
 !          (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
 !          (0.d0,0d0), h, size(h,1))
 
-       call zgemm('C','N',shift2,shift2,shift2,                       &
-           (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
-           (0.d0,0d0), s_cp, size(h,1))
+       call zgemm('C','N', shift2, shift2, sze,                       &
+           (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
+           (0.d0,0d0), s_tmp, size(s_tmp,1))
 
 !       Call zgemm('T','N', shift2, shift2, sze,                       &
 !          (1.d0,0d0), U, size(U,1), U, size(U,1),                          &

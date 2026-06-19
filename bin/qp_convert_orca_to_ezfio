@@ -68,17 +68,39 @@ def is_json_file(filepath):
 def sanitize_orca_json(filepath):
     """Return a path to a sanitized copy of the ORCA JSON file.
 
-    ORCA sometimes writes bare NaN/Infinity values that are not valid JSON.
-    Replaces them with null so the JSON parser can proceed.
+    Fixes two classes of issues:
+
+    1. Bare NaN/Infinity values that are not valid JSON.
+       Replaces them with null so the JSON parser can proceed.
+
+    2. Timing line injected by orca_2json into stdout when redirected.
+       orca_2json sometimes prints a progress line (e.g. '0.000916 s done')
+       directly to stdout, which lands inside the JSON at the "Molecule"
+       section and corrupts it.  The line replaces the '"Atoms": [' key,
+       leaving the structure as:
+           "Molecule": {
+            0.000916 s done
+           {
+       This regex restores the correct structure.
+
     Returns the original path if no substitution is needed, otherwise a
     NamedTemporaryFile path (caller must delete it).
     """
     with open(filepath, 'r', errors='replace') as f:
         content = f.read()
-    # Replace bare NaN / Infinity / nan / inf (case-insensitive) with null
+
+    # Fix 1: bare NaN / Infinity / inf → null
     sanitized = re.sub(r'\bNaN\b', 'null', content, flags=re.IGNORECASE)
     sanitized = re.sub(r'[+-]?Infinity\b', 'null', sanitized, flags=re.IGNORECASE)
     sanitized = re.sub(r'\binf\b', 'null', sanitized, flags=re.IGNORECASE)
+
+    # Fix 2: orca_2json timing line inside "Molecule" section
+    sanitized = re.sub(
+        r'("Molecule"\s*:\s*\{)\s*\n\s*[\d.]+\s+s\s+done\s*\n\s*(\{)',
+        r'\1\n    "Atoms": [\n      \2',
+        sanitized
+    )
+
     if sanitized == content:
         return filepath, None
     tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)

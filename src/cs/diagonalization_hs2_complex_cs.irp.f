@@ -356,8 +356,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       shift2 = N_st_diag*iter
 
         if (do_qr_dav) then
-          ! Orthogonalization using c-bilinear product (consistent with 'T' in zgemm below)
-          call qr_decomposition_c(U,size(U,1),sze,shift2)
+          ! Orthogonalization of the guess vectors
+          call ortho_qr_complex(U,size(U,1),sze,shift2)
+          !call qr_decomposition_c(U,size(U,1),sze,shift2)
 
           ! Change the sign of the guess vectors to match with the ones of the previous 
           ! iterations
@@ -400,7 +401,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
          do i=1,shift2
            s_(i,j) = 0.d0
            do k=1,sze
-             s_(i,j) = s_(i,j) + U(k,i) * dcmplx(dble(S(k,j)),dble(aimag(S(k,j))))
+             s_(i,j) = s_(i,j) + DCONJG(U(k,i)) * dcmplx(dble(S(k,j)),dble(aimag(S(k,j))))
            enddo
           enddo
         enddo
@@ -539,7 +540,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           do l = 1, N_st
             do k = 1, N_st_diag
               do i = 1, sze
-                overlp(k+j-1,l) += u_in(i,l) * U(i,shift2+k)
+                overlp(k+j-1,l) += u_in(i,l) * DCONJG(U(i,shift2+k))
               enddo
             enddo
           enddo

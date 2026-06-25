@@ -410,21 +410,21 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       ! Compute h_kl = <u_k | W_l> = <u_k| H |u_l>
       ! -------------------------------------------
 
-      call zgemm('C','N', shift2, shift2, sze,                        &
-          (1.d0,0d0), U, size(U,1), W, size(W,1),                           &
-          (0.d0,0d0), h, size(h,1))
-
-!      call zgemm('T','N', shift2, shift2, sze,                       &
-!          (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
+!      call zgemm('C','N', shift2, shift2, sze,                        &
+!          (1.d0,0d0), U, size(U,1), W, size(W,1),                           &
 !          (0.d0,0d0), h, size(h,1))
 
-       call zgemm('C','N', shift2, shift2, sze,                       &
-           (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
-           (0.d0,0d0), s_tmp, size(s_tmp,1))
+      call zgemm('T','N', shift2, shift2, sze,                       &
+          (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
+          (0.d0,0d0), h, size(h,1))
 
-!       Call zgemm('T','N', shift2, shift2, sze,                       &
-!          (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
-!          (0.d0,0d0), s_tmp, size(s_tmp,1))
+!       call zgemm('C','N', shift2, shift2, sze,                       &
+!           (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
+!           (0.d0,0d0), s_tmp, size(s_tmp,1))
+
+       Call zgemm('T','N', shift2, shift2, sze,                       &
+          (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
+          (0.d0,0d0), s_tmp, size(s_tmp,1))
 
       ! Diagonalize the projected Hamiltonian using the generalized eigenvalue problem
       ! h y = lambda s_tmp y  (c-bilinear product)
@@ -440,13 +440,13 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           (1.d0,0d0), s_cp, size(h,1), y, size(y,1),                          &
           (0d0,0.d0), s_tmp, size(s_tmp,1))
 
-       call zgemm('C','N',shift2,shift2,shift2,                       &
-           (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
-           (0.d0,0d0), s_cp, size(h,1))
+!       call zgemm('C','N',shift2,shift2,shift2,                       &
+!           (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
+!           (0.d0,0d0), s_cp, size(h,1))
 
-!       call zgemm('T','N',shift2,shift2,shift2,                       &
-!          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
-!          (0.d0,0d0), s_cp, size(h,1))
+       call zgemm('T','N',shift2,shift2,shift2,                       &
+          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
+          (0.d0,0d0), s_cp, size(h,1))
 
        do i = 1, shift2
          ! Guard against near-zero c-norm: (Uy_i)^T(Uy_i) can vanish for complex vectors
@@ -473,13 +473,13 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           (1.d0,0d0), h, size(h,1), y, size(y,1),                          &
           (0d0,0.d0), s_tmp, size(s_tmp,1))
 
-      call zgemm('C','N',shift2,shift2,shift2,                       &
-          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
-          (0.d0,0d0), h, size(h,1))
-
-!      call zgemm('T','N',shift2,shift2,shift2,                       &
+!      call zgemm('C','N',shift2,shift2,shift2,                       &
 !          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
 !          (0.d0,0d0), h, size(h,1))
+
+      call zgemm('T','N',shift2,shift2,shift2,                       &
+          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
+          (0.d0,0d0), h, size(h,1))
 
       do k=1,shift2
         lambda(k) = h(k,k)
@@ -492,13 +492,13 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           (1.d0,0d0), s_, size(s_,1), y, size(y,1),                        &
           (0.d0,0d0), s_tmp, size(s_tmp,1))
 
-      call zgemm('C','N',shift2,shift2,shift2,                       &
-          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
-          (0.d0,0d0), s_, size(s_,1))
-
-!      call zgemm('T','N',shift2,shift2,shift2,                       &
+!      call zgemm('C','N',shift2,shift2,shift2,                       &
 !          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
 !          (0.d0,0d0), s_, size(s_,1))
+
+      call zgemm('T','N',shift2,shift2,shift2,                       &
+          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
+          (0.d0,0d0), s_, size(s_,1))
 
       do k=1,shift2
         s2(k) = s_(k,k)

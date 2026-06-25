@@ -639,7 +639,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           to_print(2,k) = dimag(lambda(k) + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0))
           to_print(3,k) = dble(s2(k))
           to_print(4,k) = dimag(s2(k))
-          to_print(5,k) = abs(residual_norm(k))
+          to_print(5,k) = dble(residual_norm(k))
         endif
       enddo
       !$OMP END PARALLEL DO
@@ -654,14 +654,14 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       ! Check convergence
       if (iter > 1) then
         if (threshold_davidson_from_pt2) then
-          converged = maxval(abs(residual_norm(1:N_st))) < threshold_davidson_pt2
+          converged = dabs(maxval(abs(residual_norm(1:N_st)))) < threshold_davidson_pt2
         else
-          converged = maxval(abs(residual_norm(1:N_st))) < threshold_davidson
+          converged = dabs(maxval(abs(residual_norm(1:N_st)))) < threshold_davidson
         endif
       endif
 
       do k=1,N_st
-        if (abs(residual_norm(k)) > 1.d8) then
+        if (dble(residual_norm(k)) > 1.d8) then
           print *, 'Davidson failed'
           stop -1
         endif

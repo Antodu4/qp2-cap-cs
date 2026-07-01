@@ -359,7 +359,7 @@ compute_singles=.True.
           call get_s2(tmp_det,tmp_det2,$N_int,sij)
           !DIR$ LOOP COUNT AVG(4)
           do l=1,N_st
-            v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.d0) * utl(l,kk+1)
+            v_t(l,k_a) = v_t(l,k_a) + e_itheta * dcmplx(hij,0.d0) * utl(l,kk+1)
             s_t(l,k_a) = s_t(l,k_a) + dcmplx(sij,0d0) * utl(l,kk+1)
           enddo
         enddo

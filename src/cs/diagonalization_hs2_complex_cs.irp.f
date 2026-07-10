@@ -62,12 +62,12 @@ subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,
   !$OMP END DO
   !$OMP END PARALLEL
 
-  call davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,converged)
+  call davidson_diag_hjj_sjj_complex_cs(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,converged)
   deallocate (H_jj)
 end
 
 
-subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,converged)
+subroutine davidson_diag_hjj_sjj_complex_cs(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,converged)
   use bitmasks
   use mmap_module
   implicit none
@@ -456,6 +456,27 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
          if (cdabs(s_cp(i,i)) > 1d-12) then
            y(:,i) = y(:,i) / cdsqrt(s_cp(i,i))
          else
+           ! DEBUG: this is the suspected point of origin of the theta=0 zero-
+           ! eigenvector bug. s_cp(i,i) = y(:,i)^dagger . s_tmp . y(:,i) should be
+           ! mathematically >= 0 for the PSD Gram matrix s_tmp = U^dagger U, so a
+           ! near-zero value here most likely signals that lapack_zggev returned
+           ! an ill-conditioned eigenvector for a degenerate/near-degenerate pair
+           ! in the (h, s_tmp) generalized eigenproblem -- print the local context
+           ! (theta, iteration, state index, pivot, and the neighboring lambda
+           ! spectrum) to check for eigenvalue clustering around state i.
+           write(*,'(A)') ' [DEBUG davidson_diag_hjj_sjj_complex_cs] near-zero s_cp(i,i)'
+           write(*,'(A,ES12.4,A,I5,A,I5,A,I6)') &
+             '   theta_cs=', theta_cs, '  itertot=', itertot, '  iter=', iter, &
+             '  state i=', i
+           write(*,'(A,ES12.4,A,ES12.4,A,ES12.4)') &
+             '   |s_cp(i,i)|=', cdabs(s_cp(i,i)), '  Re=', dble(s_cp(i,i)), &
+             '  Im=', dimag(s_cp(i,i))
+           write(*,'(A)') '   Neighboring lambda spectrum (Re,Im) around state i:'
+           do k = max(1,i-2), min(shift2,i+2)
+             write(*,'(A,I5,A,ES16.8,A,ES16.8,A,ES12.4)') &
+               '     k=', k, '  Re(lambda)=', dble(lambda(k)), &
+               '  Im(lambda)=', dimag(lambda(k)), '  |s_cp(k,k)|=', cdabs(s_cp(k,k))
+           enddo
            y(:,i) = (0d0, 0d0)
          endif
        enddo

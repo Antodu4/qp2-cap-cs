@@ -1,4 +1,4 @@
-subroutine qr_decomposition_c(A,lda,m,n)
+subroutine qr_decomposition_c(A,lda,m,n,guard)
   implicit none
   BEGIN_DOC
   ! QR decomposition of a complex matrix A using a non-conjugate Gram-Schmidt algorithm.
@@ -8,13 +8,33 @@ subroutine qr_decomposition_c(A,lda,m,n)
   ! m : number of rows (m >= n required)
   !
   ! n : number of columns
+  !
+  ! guard : (optional, DEBUG) if .True., skip the division for any column whose
+  !         c-bilinear pivot |R(j,j)| falls below 1d-12 instead of dividing by
+  !         ~0 (which otherwise produces Inf/NaN that corrupts every subsequent
+  !         column through the projection step below). If not given explicitly,
+  !         defaults to the EZFIO keyword `qr_decomposition_guard` (module cap),
+  !         toggleable at runtime with 'qp set cap qr_decomposition_guard True'
+  !         without recompiling. Both default to .False. so all existing call
+  !         sites are unaffected unless opted in explicitly or via qp set.
+  !
+  !         A debug warning is printed whenever a near-zero pivot is encountered,
+  !         REGARDLESS of `guard`, so callers can see how often this fires even
+  !         without changing behavior. Remove once the diagnosis is complete.
   END_DOC
 
   integer, intent(in) ::  lda,m,n
   complex*16, intent(inout) :: A(lda,n)
+  logical, intent(in), optional :: guard
 
   complex*16, allocatable :: R(:,:)
   integer :: i,j,k
+  logical :: guard_
+  double precision, parameter :: pivot_threshold = 1.d-12
+
+  PROVIDE qr_decomposition_guard
+  guard_ = qr_decomposition_guard
+  if (present(guard)) guard_ = guard
 
   allocate(R(n,n))
 
@@ -37,6 +57,24 @@ subroutine qr_decomposition_c(A,lda,m,n)
     do k = 1, m
       R(j,j) = R(j,j) + A(k,j) * A(k,j)
     enddo
+
+    ! DEBUG: report near-zero pivots regardless of `guard`, to measure how
+    ! often the c-bilinear norm collapses for this system before deciding
+    ! whether to enable the guard broadly.
+    if (cdabs(R(j,j)) < pivot_threshold) then
+      write(*,'(A,I6,A,ES12.4,A,ES12.4,A,ES12.4,A,L2)') &
+        ' [DEBUG qr_decomposition_c] near-zero pivot at column ', j, &
+        '  |R(j,j)| = ', cdabs(R(j,j)), '  Re = ', dble(R(j,j)), &
+        '  Im = ', dimag(R(j,j)), '  guard=', guard_
+    endif
+
+    if (guard_ .and. cdabs(R(j,j)) < pivot_threshold) then
+      ! Leave column j as the (already projected, near-null) residual instead
+      ! of dividing by ~0. It carries essentially no norm anyway, so this is
+      ! numerically inert -- it just avoids injecting Inf/NaN into the cascade.
+      cycle
+    endif
+
     R(j,j) = cdsqrt(R(j,j))
     do k = 1, m
       A(k,j) = A(k,j) / R(j,j)

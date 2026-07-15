@@ -35,6 +35,21 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
 
    PROVIDE threshold_davidson nthreads_davidson distributed_davidson
 
+   ! DEBUG: dimension/consistency snapshot at subroutine entry, before any
+   ! allocation or copy. Compares raw N_det/N_states/N_states_diag against
+   ! the min(...) combinations actually used below and in the Davidson calls,
+   ! to catch a possible large-N_det-specific mismatch (e.g. N_states_diag
+   ! not actually being > N_states, or N_det exceeding an implicit assumption
+   ! somewhere downstream) that would not show up at the smaller debug/mid
+   ! scales where everything stayed comfortably inside typical bounds.
+   write(*,'(A)') ' [DEBUG diagonalize_ci_cs] entry dimensions:'
+   write(*,'(A,I10,A,I6,A,I6)') '   N_det=', N_det, '  N_states=', N_states, &
+     '  N_states_diag=', N_states_diag
+   write(*,'(A,I6,A,I6)') '   min(N_det,N_states)=', min(N_det,N_states), &
+     '  min(N_det,N_states_diag)=', min(N_det,N_states_diag)
+   write(*,'(A,I10,A,I10)') '   size(u_in,1)=', size(u_in,1), '  size(u_in,2)=', size(u_in,2)
+   write(*,'(A,A)') '   diag_algorithm=', trim(diag_algorithm)
+
    allocate(ci_eigenvectors_cs(N_det,N_states_diag))
    allocate(ci_s2_cs(N_states_diag))
    allocate(ci_electronic_energy_cs(N_states_diag))
@@ -58,6 +73,17 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
        size(ci_eigenvectors_cs,1),ci_electronic_energy_cs,               &
        N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
 
+     ! DEBUG: state of ci_eigenvectors_cs as returned by the FIRST Davidson call,
+     ! before the "not converged -> double N_states_diag and retry" logic below
+     ! has any chance to touch it.
+     write(*,'(A)') ' [DEBUG diagonalize_ci_cs] after first davidson_diag_HS2_complex_cs call:'
+     write(*,'(A,L1)') '   converged=', converged
+     do i_state = 1, N_states
+       write(*,'(A,I3,A,ES16.8,A,ES16.8)') '   state=', i_state,          &
+         '  |ci_eigenvectors_cs(1,state)|=', cdabs(ci_eigenvectors_cs(1,i_state)), &
+         '  |ci_eigenvectors_cs(N_det,state)|=', cdabs(ci_eigenvectors_cs(N_det,i_state))
+     enddo
+
      integer :: N_states_diag_save
      N_states_diag_save = N_states_diag
      do while (.not.converged)
@@ -78,6 +104,17 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
        call davidson_diag_HS2_complex_cs(psi_det,ci_eigenvectors_cs_tmp, ci_s2_cs_tmp, &
          size(ci_eigenvectors_cs_tmp,1),ci_electronic_energy_cs_tmp,               &
          N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+
+       ! DEBUG: this whole "doubling" retry block only runs if the FIRST
+       ! davidson call (Point B) returned converged=.False. -- if this print
+       ! ever fires, it means convergence was NOT reached on the first try,
+       ! which would be a major, previously-unobserved finding on its own.
+       ! Note it also only ever re-seeds from the ORIGINAL N_states_diag_save
+       ! columns of ci_eigenvectors_cs (see copy-back below), not from the
+       ! larger subspace just explored -- worth revisiting if this fires.
+       write(*,'(A,I3,A,L1,A,ES16.8)') ' [DEBUG diagonalize_ci_cs] retry loop: N_states_diag=', &
+         N_states_diag, '  converged=', converged, '  |ci_eigenvectors_cs_tmp(1,1)|=', &
+         cdabs(ci_eigenvectors_cs_tmp(1,1))
 
        ci_electronic_energy_cs(1:N_states_diag_save) = ci_electronic_energy_cs_tmp(1:N_states_diag_save)
        ci_eigenvectors_cs(1:N_det,1:N_states_diag_save) = ci_eigenvectors_cs_tmp(1:N_det,1:N_states_diag_save)
@@ -312,6 +349,19 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
 
    eigvec = ci_eigenvectors_cs(:,1:N_states)
 
+   ! DEBUG: eigvec right after the copy from ci_eigenvectors_cs, before any
+   ! normalization. Compares directly against Point A/B: if this is already
+   ! zero while Point A/B showed non-zero, the corruption happens in the
+   ! "doubling" retry block or in the u_in -> ci_eigenvectors_cs -> eigvec
+   ! copy chain above.
+   write(*,'(A)') ' [DEBUG diagonalize_ci_cs] eigvec right after copy, pre-normalization:'
+   do k_col = 1, N_states
+     write(*,'(A,I3,A,ES16.8,A,F18.10,A,F18.10)') '   state=', k_col,     &
+       '  |eigvec(1,state)|=', cdabs(eigvec(1,k_col)),                     &
+       '  Re(E)=', dble(ci_electronic_energy_cs(k_col)),                   &
+       '  Im(E)=', dimag(ci_electronic_energy_cs(k_col))
+   enddo
+
    ! Per-column c-normalization with guard against near-zero c-norm.
    ! We do NOT use qr_decomposition_c (Gram-Schmidt) here because it mixes all
    ! states via subtraction of projections: if one state has a near-zero c-norm
@@ -321,15 +371,23 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
    ! so inter-state c-orthogonality is not required.
    do k_col = 1, N_states
      call inner_prod_c(eigvec(1,k_col), eigvec(1,k_col), N_det, cnorm_col)
+     ! DEBUG: unconditional print of the c-norm actually seen for every state,
+     ! even when the primary (c-norm) branch succeeds normally. This is the
+     ! quantity being tested against the 1d-12 threshold below.
+     write(*,'(A,I3,A,ES16.8,A,ES16.8)') ' [DEBUG diagonalize_ci_cs] state=', k_col, &
+       '  c-norm Re=', dble(cnorm_col), '  Im=', dimag(cnorm_col)
      if (cdabs(cnorm_col) > 1d-12) then
        eigvec(:,k_col) = eigvec(:,k_col) / cdsqrt(cnorm_col)
      else
        ! Near-zero c-norm: fall back to Hermitian normalization to keep the
        ! vector finite and flag the state as unconverged via its residue.
        call inner_product_complex(eigvec(1,k_col), eigvec(1,k_col), N_det, cnorm_col)
+       write(*,'(A,I3,A,ES16.8)') ' [DEBUG diagonalize_ci_cs] state=', k_col, &
+         '  fallback Hermitian norm=', dble(cnorm_col)
        if (dble(cnorm_col) > 1d-20) then
          eigvec(:,k_col) = eigvec(:,k_col) / dsqrt(dble(cnorm_col))
        else
+         write(*,'(A,I3,A)') ' [DEBUG diagonalize_ci_cs] state=', k_col, '  ZEROING (both norms below threshold)'
          eigvec(:,k_col) = (0d0, 0d0)
        endif
      endif

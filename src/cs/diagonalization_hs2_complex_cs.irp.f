@@ -728,6 +728,17 @@ subroutine davidson_diag_hjj_sjj_complex_cs(dets_in,u_in,H_jj,s2_out,energies,di
     call zgemm('N','N', sze, N_st_diag, shift2, (1.d0,0d0),      &
         U, size(U,1), y, size(y,1), (0.d0,0d0), u_in, size(u_in,1))
 
+    ! DEBUG: raw Davidson output right after u_in = U*y (before any downstream
+    ! copy/normalization). If |u_in| is already ~0 here, the corruption is
+    ! inside the Krylov reconstruction (U or y); if it is non-zero here but
+    ! zero later in diagonalize_ci_cs, the corruption is downstream of Davidson.
+    write(*,'(A)') ' [DEBUG davidson_diag_hjj_sjj_complex_cs] u_in = U*y just computed:'
+    do k = 1, N_st
+      write(*,'(A,I3,A,ES16.8,A,ES16.8,A,L1)') '   k=', k,          &
+        '  |u_in(1,k)|=', cdabs(u_in(1,k)),                          &
+        '  |u_in(sze,k)|=', cdabs(u_in(sze,k)), '  converged=', converged
+    enddo
+
     !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
     do k=1,N_st_diag
       do i=1,sze

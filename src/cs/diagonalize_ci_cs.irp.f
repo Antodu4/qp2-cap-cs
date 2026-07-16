@@ -88,13 +88,28 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
        deallocate (ci_s2_cs_tmp)
      enddo
 
+     ! BUG (root cause of the theta=0 all-zero "Energy of the states" output):
+     ! ci_eigenvectors_cs/ci_s2_cs/ci_electronic_energy_cs are never resized
+     ! inside the retry loop above (only the _tmp buffers grow); the copy-back
+     ! at each iteration (a few lines up) already leaves them at the correct
+     ! N_states_diag_save size, filled with the converged result. The block
+     ! below deallocates them and reallocates fresh (empty) arrays of the same
+     ! size -- with no data copied back in -- silently wiping the converged
+     ! wavefunction every time this retry path is taken. Confirmed by the
+     ! debug trace on Be.debug.full.cs.out: |ci_eigenvectors_cs_tmp(1,1)| was
+     ! non-zero right before this block, and exactly zero right after.
+     !if (N_states_diag > N_states_diag_save) then
+     !  N_states_diag = N_states_diag_save
+     ! deallocate(ci_eigenvectors_cs, ci_electronic_energy_cs, ci_s2_cs)
+     !  allocate(ci_eigenvectors_cs(N_det,N_states_diag))
+     !  allocate(ci_s2_cs(N_states_diag))
+     !  allocate(ci_electronic_energy_cs(N_states_diag))
+     !
+     !endif
+     ! FIX: the arrays are already correct; only the scalar N_states_diag
+     ! needs to be restored to match their (unchanged) size.
      if (N_states_diag > N_states_diag_save) then
        N_states_diag = N_states_diag_save
-      deallocate(ci_eigenvectors_cs, ci_electronic_energy_cs, ci_s2_cs)
-       allocate(ci_eigenvectors_cs(N_det,N_states_diag))
-       allocate(ci_s2_cs(N_states_diag))
-       allocate(ci_electronic_energy_cs(N_states_diag))
-       
      endif
 
    else if (diag_algorithm == "Lapack") then

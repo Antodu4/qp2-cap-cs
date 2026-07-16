@@ -486,38 +486,7 @@ subroutine ortho_qr_complex(A,LDA,m,n)
   deallocate(WORK)
   allocate(WORK(LWORK))
   call  zgeqrf(m, n, A, LDA, TAU, WORK, LWORK, INFO )
-
-  ! DEBUG: zgeqrf failure is currently never checked -- report it if it happens.
-  if (info /= 0) then
-    write(*,'(A,I6)') ' [DEBUG ortho_qr_complex] zgeqrf returned info = ', info
-  endif
-
-  ! DEBUG: diagonal of R (still stored in the upper triangle of A at this point,
-  ! before zungqr overwrites A with Q) is the Householder-QR pivot. Unlike
-  ! qr_decomposition_c's c-bilinear pivot, this one is built on the Hermitian
-  ! norm and should only vanish for a genuinely (near-)rank-deficient input
-  ! (e.g. a Krylov direction that adds no new information). Reported
-  ! unconditionally, no guard/skip is applied -- LAPACK's Householder QR does
-  ! not blow up on a near-zero pivot the way the hand-rolled c-bilinear
-  ! Gram-Schmidt does, so this is purely diagnostic.
-  integer :: j_diag
-  double precision, parameter :: r_pivot_threshold = 1.d-12
-  do j_diag = 1, n
-    if (cdabs(A(j_diag,j_diag)) < r_pivot_threshold) then
-      write(*,'(A,I6,A,ES12.4,A,ES12.4,A,ES12.4)') &
-        ' [DEBUG ortho_qr_complex] near-zero Householder pivot at column ', j_diag, &
-        '  |R(j,j)| = ', cdabs(A(j_diag,j_diag)), '  Re = ', dble(A(j_diag,j_diag)), &
-        '  Im = ', dimag(A(j_diag,j_diag))
-    endif
-  enddo
-
   call  zungqr(m, n, n, A, LDA, tau, WORK, LWORK, INFO)
-
-  ! DEBUG: zungqr failure is currently never checked -- report it if it happens.
-  if (info /= 0) then
-    write(*,'(A,I6)') ' [DEBUG ortho_qr_complex] zungqr returned info = ', info
-  endif
-
   deallocate(WORK,jpvt,tau)
 end
 

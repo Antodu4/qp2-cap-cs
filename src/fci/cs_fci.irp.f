@@ -47,7 +47,13 @@ program cs_fci
       do_cs = .True.
       cs_pt2 = .True.
       TOUCH do_cs cs_pt2
-      call run_stochastic_cs_cipsi(Ev,PT2)
+      if (cs_cipsi_per_theta) then
+        ! Inverted loop: a COMPLETE CIPSI is converged for each theta value.
+        call run_stochastic_cs_cipsi_per_theta(Ev,PT2)
+      else
+        ! Original loop: select at the base theta, scan the other theta values.
+        call run_stochastic_cs_cipsi(Ev,PT2)
+      endif
     !else
     !  call run_cipsi
     !endif

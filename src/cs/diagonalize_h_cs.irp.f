@@ -10,6 +10,9 @@ program diagonalize_h_cs
   ! then prints the complex energies for each state and theta value.
   END_DOC
 
-  call cs()
+  complex*16, allocatable :: l_en(:,:)
+  allocate(l_en(N_states, n_steps_cs))
+  call cs(l_en, .true.)
+  deallocate(l_en)
 
 end

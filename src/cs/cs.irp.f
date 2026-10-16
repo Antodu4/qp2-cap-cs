@@ -1,4 +1,4 @@
-subroutine cs()
+subroutine cs(l_energy_out, do_print)
 
   implicit none
 
@@ -17,9 +17,13 @@ subroutine cs()
   ! it is non-zero, otherwise from the real CI coefficients psi_coef.
   END_DOC
 
+  complex*16, intent(out) :: l_energy_out(N_states, n_steps_cs)
+  logical, intent(in)     :: do_print
   complex*16, allocatable :: psi_cs(:,:), energy(:), l_energy(:,:), corr(:), l_corr(:,:)
   double precision :: write_e(2,N_states), theta_cs_save, theta
   integer :: i,j
+
+  l_energy_out = (0d0,0d0)
 
   if (do_cs) then
     if (theta_cs >= 0d0 .and. n_steps_cs >= 1) then
@@ -52,6 +56,10 @@ subroutine cs()
       enddo
       theta_cs = theta_cs_save
       touch theta_cs
+
+      l_energy_out(1:N_states,1:n_steps_cs) = l_energy(1:N_states,1:n_steps_cs)
+
+      if (do_print) then
 
       ! Energy
       write(*,*) ''
@@ -165,6 +173,8 @@ subroutine cs()
       enddo
       write(*,'(A33)') ' =============================== '
       write(*,*) ''
+
+      endif  ! do_print
 
       deallocate(psi_cs,energy,l_energy,l_corr)
 

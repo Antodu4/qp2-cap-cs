@@ -58,6 +58,11 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   double precision               :: relative_error
   double precision               :: correlation_energy_ratio
 
+  ! Trajectory collection: one record (row) per (state,theta,iter), printed at the end.
+  ! rec columns: 1=iter 2=n_det 3=theta 4=state 5=ReE 6=ImE 7=ReE+PT2 8=ImE+PT2 9=RePT2 10=ImPT2 11=variance
+  integer                        :: inner_iter, s, nrec, cap
+  double precision, allocatable  :: rec(:,:), rec_tmp(:,:)
+
   PROVIDE H_apply_buffer_allocated distributed_davidson mo_two_e_integrals_in_map
 
   threshold_generators = 1.d0
@@ -87,6 +92,9 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   theta0  = theta_cs
   dtheta  = theta_step_size
   allocate(e_theta(N_states,n_theta))
+
+  nrec = 0
+  cap  = 0
 
   call ezfio_has_hartree_fock_energy(has)
   if (has) then
@@ -164,6 +172,8 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
     pt2_data % overlap  = 0.d0
     pt2_data % variance = huge(1.e0)
 
+    inner_iter = 0
+
     ! -------------------------------------------------------------------------
     ! INNER CIPSI LOOP at fixed theta
     ! -------------------------------------------------------------------------
@@ -174,6 +184,8 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
           (correlation_energy_ratio <= correlation_energy_ratio_max)   &
           )
       write(*,'(A)')  '--------------------------------------------------------------------------------'
+
+      inner_iter = inner_iter + 1
 
       to_select = int(sqrt(dble(N_states))*dble(N_det)*selection_factor)
       to_select = max(N_states_diag, to_select)
@@ -201,6 +213,28 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       call increment_n_iter(psi_energy_with_nucl_rep, pt2_data)
       call print_mol_properties()
       call write_cipsi_json(pt2_data,pt2_data_err)
+
+      ! Collect one record per state: E_var and PT2 of the CURRENT determinant set
+      if (nrec + N_states > cap) then
+        cap = max(2*cap, nrec + N_states, 1024)
+        allocate(rec_tmp(11,cap))
+        if (nrec > 0) rec_tmp(:,1:nrec) = rec(:,1:nrec)
+        call move_alloc(rec_tmp, rec)
+      endif
+      do s = 1, N_states
+        nrec = nrec + 1
+        rec(1,nrec)  = dble(inner_iter)
+        rec(2,nrec)  = dble(N_det)
+        rec(3,nrec)  = theta_cs
+        rec(4,nrec)  = dble(s)
+        rec(5,nrec)  = dble(energy(s))
+        rec(6,nrec)  = dimag(energy(s))
+        rec(7,nrec)  = dble(energy(s))  + pt2_data % pt2(s)
+        rec(8,nrec)  = dimag(energy(s)) + pt2_data % pt2_im(s)
+        rec(9,nrec)  = pt2_data % pt2(s)
+        rec(10,nrec) = pt2_data % pt2_im(s)
+        rec(11,nrec) = pt2_data % variance(s)
+      enddo
 
       ! build_psi_coef_cs_sorted overwrote the real psi_coef; restore it
       psi_coef = psi_coef_tmpsave
@@ -278,9 +312,48 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       if (qp_stop()) exit
     enddo
 
+    ! -------------------------------------------------------------------------
+    ! Final CS PT2 on the converged determinant set (no selection), so the
+    ! converged point carries a PT2 like every other iteration. Same CS path
+    ! as the final-PT2 block of run_stochastic_cs_cipsi.
+    ! -------------------------------------------------------------------------
+    if (.not. qp_stop()) then
+      call pt2_dealloc(pt2_data)
+      call pt2_dealloc(pt2_data_err)
+      call pt2_alloc(pt2_data, N_states)
+      call pt2_alloc(pt2_data_err, N_states)
+      call build_psi_coef_cs_sorted(psi_cs_coef)
+      call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0)
+      psi_coef = psi_coef_tmpsave
+      touch psi_coef
+    endif
+
     ! Record the converged complex energy at this theta
     do k = 1, N_states
       e_theta(k,k_theta) = psi_energy_cs(k) + e_itheta * dcmplx(nuclear_repulsion,0d0)
+    enddo
+
+    ! Collect the converged point (E_var + final CS PT2) for each state
+    inner_iter = inner_iter + 1
+    if (nrec + N_states > cap) then
+      cap = max(2*cap, nrec + N_states, 1024)
+      allocate(rec_tmp(11,cap))
+      if (nrec > 0) rec_tmp(:,1:nrec) = rec(:,1:nrec)
+      call move_alloc(rec_tmp, rec)
+    endif
+    do s = 1, N_states
+      nrec = nrec + 1
+      rec(1,nrec)  = dble(inner_iter)
+      rec(2,nrec)  = dble(N_det)
+      rec(3,nrec)  = theta_cs
+      rec(4,nrec)  = dble(s)
+      rec(5,nrec)  = dble(e_theta(s,k_theta))
+      rec(6,nrec)  = dimag(e_theta(s,k_theta))
+      rec(7,nrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
+      rec(8,nrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
+      rec(9,nrec)  = pt2_data % pt2(s)
+      rec(10,nrec) = pt2_data % pt2_im(s)
+      rec(11,nrec) = pt2_data % variance(s)
     enddo
 
     write(*,'(A,ES16.8,A,I10)') ' Converged theta = ', theta_cs, '   N_det = ', N_det
@@ -289,24 +362,10 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   enddo
 
   ! ===========================================================================
-  ! Summary table E(theta) for each state
+  ! Final unified output (shared routine, identical layout for both algorithms).
   ! ===========================================================================
-  write(*,*) ''
-  write(*,*) ' #####################################'
-  write(*,*) ' ###  CS per-theta CIPSI energies  ###'
-  write(*,*) ' #####################################'
-  write(*,*) ''
-  write(*,'(A15)',advance='no') '   Theta     '
-  do k = 1, N_states
-    write(*,'(A33)',advance='no') '   Energy (Re)     Energy (Im)  '
-  enddo
-  write(*,*) ''
-  do k_theta = 1, n_theta
-    theta_val = theta0 + dble(k_theta-1)*dtheta
-    write(*,'(ES12.4,3X,100(F16.10,1X,F14.10,2X))') theta_val, &
-      (dble(e_theta(k,k_theta)), dimag(e_theta(k,k_theta)), k=1,N_states)
-  enddo
-  write(*,*) ''
+  if (.not. allocated(rec)) allocate(rec(11,1))
+  call cs_print_traj('per_theta', n_theta, theta0, dtheta, N_states, N_det_max, pt2_max, nrec, rec, e_theta)
 
   ! Restore the base theta
   theta_cs = theta0

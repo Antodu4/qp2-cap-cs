@@ -21,12 +21,15 @@ subroutine cap_scan(l_energy_out, do_print)
   ! complex total energies (E + V_nn) in l_energy_out(N_states, n_steps_cap).
   ! If do_print, prints a formatted table of complex CI energies and first-order
   ! corrections for all states.
+  ! On exit, eta_cap is reset to its base value and psi_cap_coef/psi_energy_cap
+  ! hold the solution at that base eta (not at the last eta of the grid).
   ! Aborts with an error message if the CAP parameters are not set correctly.
   END_DOC
 
   complex*16, intent(out) :: l_energy_out(N_states, n_steps_cap)
   logical, intent(in)     :: do_print
   complex*16, allocatable :: psi_cap(:,:), energy(:), l_energy(:,:), corr(:), l_corr(:,:)
+  complex*16, allocatable :: coef_base(:,:), e_base(:)
   double precision :: write_e(2,N_states), eta_cap_save, eta
   integer :: i,j
 
@@ -58,6 +61,14 @@ subroutine cap_scan(l_energy_out, do_print)
         l_energy(1:N_states,i) = energy(1:N_states)
         l_corr(1:N_states,i) = corr(1:N_states)
 
+        ! Keep the base-eta solution: the next diagonalizations overwrite
+        ! psi_cap_coef/psi_energy_cap, it is restored after the scan
+        if (i == 1) then
+          allocate(coef_base(N_det,N_states), e_base(N_states))
+          coef_base = psi_cap_coef
+          e_base    = psi_energy_cap
+        endif
+
         if (n_steps_cap > 1) then
           eta_cap += eta_step_size
           touch eta_cap
@@ -65,6 +76,15 @@ subroutine cap_scan(l_energy_out, do_print)
       enddo
       eta_cap = eta_cap_save
       touch eta_cap
+
+      ! Restore the base-eta wave function and energy, so that what follows
+      ! (PT2, selection, summary) is consistent with eta_cap instead of using
+      ! the solution of the last eta of the grid
+      psi_cap_coef   = coef_base
+      touch psi_cap_coef
+      psi_energy_cap = e_base
+      touch psi_energy_cap
+      deallocate(coef_base, e_base)
 
       l_energy_out(1:N_states,1:n_steps_cap) = l_energy(1:N_states,1:n_steps_cap)
 

@@ -15,11 +15,15 @@ subroutine cs(l_energy_out, do_print)
   !
   ! The initial guess for the CS coefficients is taken from psi_cs_coef if
   ! it is non-zero, otherwise from the real CI coefficients psi_coef.
+  !
+  ! On exit, theta_cs is reset to its base value and psi_cs_coef/psi_energy_cs
+  ! hold the solution at that base theta (not at the last theta of the grid).
   END_DOC
 
   complex*16, intent(out) :: l_energy_out(N_states, n_steps_cs)
   logical, intent(in)     :: do_print
   complex*16, allocatable :: psi_cs(:,:), energy(:), l_energy(:,:), corr(:), l_corr(:,:)
+  complex*16, allocatable :: coef_base(:,:), e_base(:)
   double precision :: write_e(2,N_states), theta_cs_save, theta
   integer :: i,j
 
@@ -49,6 +53,14 @@ subroutine cs(l_energy_out, do_print)
         l_energy(1:N_states,i) = energy(1:N_states)
         l_corr(1:N_states,i) = corr(1:N_states)
 
+        ! Keep the base-theta solution: the next diagonalizations overwrite
+        ! psi_cs_coef/psi_energy_cs, it is restored after the scan
+        if (i == 1) then
+          allocate(coef_base(N_det,N_states), e_base(N_states))
+          coef_base = psi_cs_coef
+          e_base    = psi_energy_cs
+        endif
+
         if (n_steps_cs > 1) then
           theta_cs += theta_step_size
           touch theta_cs
@@ -56,6 +68,15 @@ subroutine cs(l_energy_out, do_print)
       enddo
       theta_cs = theta_cs_save
       touch theta_cs
+
+      ! Restore the base-theta wave function and energy, so that what follows
+      ! (PT2, selection, summary) is consistent with theta_cs instead of using
+      ! the solution of the last theta of the grid
+      psi_cs_coef   = coef_base
+      touch psi_cs_coef
+      psi_energy_cs = e_base
+      touch psi_energy_cs
+      deallocate(coef_base, e_base)
 
       l_energy_out(1:N_states,1:n_steps_cs) = l_energy(1:N_states,1:n_steps_cs)
 

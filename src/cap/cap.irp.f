@@ -2,17 +2,35 @@ subroutine cap()
 
   implicit none
   BEGIN_DOC
-  ! Main CAP driver routine.
-  !
+  ! Main CAP driver routine: eta scan with the printed tables (see cap_scan).
+  END_DOC
+
+  complex*16, allocatable :: l_en(:,:)
+  allocate(l_en(N_states, max(n_steps_cap,1)))
+  call cap_scan(l_en, .true.)
+  deallocate(l_en)
+
+end
+
+subroutine cap_scan(l_energy_out, do_print)
+
+  implicit none
+  BEGIN_DOC
   ! Loops over n_steps_cap values of eta_cap (starting at eta_cap, incrementing by
-  ! eta_step_size), calls diagonalize_ci_cap for each value, and prints a formatted
-  ! table of complex CI energies and first-order corrections for all states.
+  ! eta_step_size), calls diagonalize_ci_cap for each value, and returns the
+  ! complex total energies (E + V_nn) in l_energy_out(N_states, n_steps_cap).
+  ! If do_print, prints a formatted table of complex CI energies and first-order
+  ! corrections for all states.
   ! Aborts with an error message if the CAP parameters are not set correctly.
   END_DOC
 
+  complex*16, intent(out) :: l_energy_out(N_states, n_steps_cap)
+  logical, intent(in)     :: do_print
   complex*16, allocatable :: psi_cap(:,:), energy(:), l_energy(:,:), corr(:), l_corr(:,:)
   double precision :: write_e(2,N_states), eta_cap_save, eta
   integer :: i,j
+
+  l_energy_out = (0d0,0d0)
 
   if (do_cap) then
     if (cap_onset_x >= 0d0 .and. cap_onset_y >= 0d0 .and. cap_onset_z >= 0d0 &
@@ -47,6 +65,10 @@ subroutine cap()
       enddo
       eta_cap = eta_cap_save
       touch eta_cap
+
+      l_energy_out(1:N_states,1:n_steps_cap) = l_energy(1:N_states,1:n_steps_cap)
+
+      if (do_print) then
 
       ! Energy
       write(*,*) ''
@@ -160,6 +182,8 @@ subroutine cap()
       enddo
       write(*,'(A33)') ' =============================== '
       write(*,*) ''
+
+      endif  ! do_print
 
       deallocate(psi_cap,energy,l_energy,l_corr)
 

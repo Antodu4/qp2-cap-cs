@@ -47,7 +47,13 @@ program cap_fci
       do_cap = .True.
       cap_pt2 = .True.
       TOUCH do_cap cap_pt2
-      call run_stochastic_cap_cipsi(Ev,PT2)
+      if (cap_cipsi_per_eta) then
+        ! Inverted loop: a COMPLETE CIPSI is converged for each eta value.
+        call run_stochastic_cap_cipsi_per_eta(Ev,PT2)
+      else
+        ! Original loop: select at the base eta, scan the other eta values.
+        call run_stochastic_cap_cipsi(Ev,PT2)
+      endif
     !else
     !  call run_cipsi
     !endif

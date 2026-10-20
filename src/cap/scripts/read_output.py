@@ -70,6 +70,107 @@ def try_go_to_match(buff, i, match):
 
     return i
 
+
+# Columns of the TRAJ_CAP records printed by cap_print_traj (cap_traj_out.irp.f)
+TRAJ_CAP_COLUMNS = ['iter', 'N_det', 'eta', 'state',
+                    'Re(E_cap)', 'Im(E_cap)', 'Re(E_cap+PT2)', 'Im(E_cap+PT2)',
+                    'Re(PT2)', 'Im(PT2)', 'variance']
+
+
+def is_traj_cap_output(f_path):
+    """Return True if the file contains TRAJ_CAP records (cap_fci output since
+    the unified CAP trajectory output), False for the legacy format.
+
+    Args:
+        f_path : Path to the file to inspect.
+    """
+    with open(f_path, 'r') as f:
+        for line in f:
+            if line.lstrip().startswith("TRAJ_CAP"):
+                return True
+    return False
+
+
+def read_traj_cap(f_path):
+    """Read the TRAJ_CAP records of a cap_fci output file.
+
+    Args:
+        f_path : Path to the output file.
+
+    Returns:
+        algo : Algorithm name from the CAP SCAN SUMMARY banner
+               ('fixed_ndet' or 'per_eta'), or 'unknown'.
+        df   : pandas DataFrame with the TRAJ_CAP_COLUMNS columns, one row
+               per (state, eta, iteration).
+    """
+    import pandas as pd
+
+    algo = 'unknown'
+    rows = []
+    with open(f_path, 'r') as f:
+        for line in f:
+            if "CAP SCAN SUMMARY" in line and "algorithm =" in line:
+                algo = line.split("algorithm =")[-1].strip()
+                continue
+            s = line.split()
+            if len(s) == len(TRAJ_CAP_COLUMNS) + 1 and s[0] == "TRAJ_CAP":
+                rows.append([int(s[1]), int(s[2]), float(s[3]), int(s[4])] +
+                            [float(x) for x in s[5:]])
+
+    df = pd.DataFrame(rows, columns=TRAJ_CAP_COLUMNS)
+    return algo, df
+
+
+def print_traj_cap_summary(f_path):
+    """Print the full trajectory and the converged values per eta of a
+    cap_fci output file in the TRAJ_CAP format.
+
+    The converged value for each (state, eta) is the record with the largest
+    iteration index: the last CIPSI iteration in fixed_ndet mode, the last
+    iteration of the CIPSI of that eta in per_eta mode.
+
+    In fixed_ndet mode the PT2 is only computed at the base eta (first eta of
+    the grid); for the other eta values PT2 = 0 and E+PT2 = E.
+
+    Final table columns: eta, then for each state
+    Re(E), Im(E), Re(E+PT2), Im(E+PT2).
+
+    Args:
+        f_path : Path to the output file.
+    """
+    import sys
+    import numpy as np
+
+    algo, df = read_traj_cap(f_path)
+
+    print("# file: {}   algorithm = {}".format(f_path, algo))
+    if df.empty:
+        print("# No TRAJ_CAP record found.")
+        return
+
+    print("# Full trajectory (one row per state, eta, iteration)")
+    df.to_csv(sys.stdout, index=False)
+
+    last = df.loc[df.groupby(['state', 'eta'])['iter'].idxmax()]
+    states = sorted(last['state'].unique().tolist())
+    val_eta = sorted(last['eta'].unique().tolist())
+
+    print("# Converged values per eta: eta, then for each state "
+          "Re(E), Im(E), Re(E+PT2), Im(E+PT2)")
+    cols = ['Re(E_cap)', 'Im(E_cap)', 'Re(E_cap+PT2)', 'Im(E_cap+PT2)']
+    data = np.full((len(val_eta), 1 + 4*len(states)), np.nan)
+    data[:, 0] = val_eta
+    for k, eta in enumerate(val_eta):
+        for i, st in enumerate(states):
+            row = last[(last['state'] == st) & (last['eta'] == eta)]
+            if not row.empty:
+                data[k, 1+i*4:1+(i+1)*4] = row[cols].to_numpy()[0]
+
+    for row in data:
+        print(', '.join(map(str, row)))
+    print()
+
+
 if __name__ == "__main__":
     import sys
     import numpy as np
@@ -77,6 +178,16 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     files = sys.argv[1:]
+
+    # New format (TRAJ_CAP records printed by cap_print_traj)
+    traj_files = [fname for fname in files if is_traj_cap_output(fname)]
+    for fname in traj_files:
+        print_traj_cap_summary(fname)
+
+    # Legacy format (per-iteration "CAP energies" tables printed by cap())
+    files = [fname for fname in files if fname not in traj_files]
+    if not files:
+        sys.exit()
 
     l_cipsi = []
     for fname in files:

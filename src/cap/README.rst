@@ -32,8 +32,13 @@ Key providers and subroutines
 ------------------------------
 
 ``cap.irp.f``
-    Main driver. Loops over ``n_steps_cap`` values of ``eta_cap`` and prints the
-    complex energies for all states.
+    Main driver. ``cap_scan(l_energy, do_print)`` loops over ``n_steps_cap``
+    values of ``eta_cap``, returns the complex energies (E + V_nn) for all states
+    and optionally prints them. ``cap()`` is a wrapper that prints the tables.
+
+``cap_traj_out.irp.f``
+    ``cap_print_traj``: unified trajectory output shared by both CAP-CIPSI
+    algorithms (see below).
 
 ``diagonalize_ci.irp.f``
     Diagonalizes the CAP-CI Hamiltonian using either Davidson or LAPACK. Performs
@@ -84,6 +89,51 @@ EZFIO parameters
 - ``eta_step_size``    : Step size between consecutive :math:`\eta` values.
 - ``cap_onset_x/y/z``  : Onset radii of the box CAP along each axis (a.u.).
 - ``do_cap``           : Whether to run the CAP calculation.
+- ``cap_cipsi_per_eta``: Selects the CAP-CIPSI algorithm in ``cap_fci``
+  (see below). Default: ``false``.
+
+CAP-CIPSI algorithms (``cap_fci``)
+----------------------------------
+
+Two algorithms are available to follow the :math:`\eta`-trajectory with a
+selected CI, mirroring the two Complex Scaling (``cs``) algorithms:
+
+``fixed_ndet`` (``cap_cipsi_per_eta = false``, default)
+    ``run_stochastic_cap_cipsi`` (``cipsi/stochastic_cap_cipsi.irp.f``).
+    Determinants are selected with the CAP PT2 at the base :math:`\eta`
+    (``eta_cap``). At each CIPSI iteration, the other :math:`\eta` values of the
+    grid are only re-diagonalized on the same determinant set. The PT2 is
+    therefore only available at the base :math:`\eta`.
+
+``per_eta`` (``cap_cipsi_per_eta = true``)
+    ``run_stochastic_cap_cipsi_per_eta`` (``cipsi/stochastic_cap_cipsi_per_eta.irp.f``).
+    Outer loop over the :math:`\eta` grid: for each :math:`\eta`, a complete
+    CIPSI is converged, starting each time from the same initial determinant
+    set (cold start). The determinant space, the energy and the PT2 are thus
+    specific to each :math:`\eta`.
+
+Both algorithms end with the same summary printed by ``cap_print_traj``:
+
+- a banner ``CAP SCAN SUMMARY  algorithm = fixed_ndet | per_eta``;
+- block A: convergence vs N_det, one row per (state, :math:`\eta`, iteration);
+- block B: final CAP energies per :math:`\eta`;
+- block C: machine-readable records, one line per (state, :math:`\eta`,
+  iteration), starting with ``TRAJ_CAP``:
+  ``iter n_det eta state ReE ImE ReEPT2 ImEPT2 RePT2 ImPT2 variance``.
+
+In ``fixed_ndet`` mode the per-iteration CAP energy tables are no longer
+printed (block C replaces them); ``diagonalize_h_cap`` still prints them.
+
+Example::
+
+    qp set cap cap_onset_x 5.0
+    qp set cap cap_onset_y 5.0
+    qp set cap cap_onset_z 5.0
+    qp set cap eta_cap 0.0
+    qp set cap eta_step_size 1.e-4
+    qp set cap n_steps_cap 20
+    qp set cap cap_cipsi_per_eta true     # or false for fixed_ndet
+    qp run cap_fci > cap_fci.out
 
 Scripts
 -------

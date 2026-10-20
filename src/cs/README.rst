@@ -33,8 +33,13 @@ Key providers and subroutines
 ------------------------------
 
 ``cs.irp.f``
-    Main driver. Loops over ``n_steps_cs`` values of ``theta_cs`` and prints the
-    complex CS energies for all states.
+    Main driver. ``cs(l_energy, do_print)`` loops over ``n_steps_cs`` values of
+    ``theta_cs``, returns the complex CS energies for all states and optionally
+    prints them.
+
+``cs_traj_out.irp.f``
+    ``cs_print_traj``: unified trajectory output shared by both CS-CIPSI
+    algorithms (see below).
 
 ``diagonalize_ci_cs.irp.f``
     Diagonalizes the CS-CI Hamiltonian using either Davidson or LAPACK. Performs
@@ -80,6 +85,48 @@ EZFIO parameters
 - ``theta_step_size``: Step size between consecutive :math:`\theta` values.
 - ``do_cs``          : Whether to run the CS calculation.
 - ``cs_write_wf``    : Whether to write the CS wavefunction to disk after each step.
+- ``cs_cipsi_per_theta``: Selects the CS-CIPSI algorithm in ``cs_fci``
+  (see below). Default: ``false``.
+
+CS-CIPSI algorithms (``cs_fci``)
+--------------------------------
+
+Two algorithms are available to follow the :math:`\theta`-trajectory with a
+selected CI:
+
+``fixed_ndet`` (``cs_cipsi_per_theta = false``, default)
+    ``run_stochastic_cs_cipsi`` (``cipsi/stochastic_cs_cipsi.irp.f``).
+    Determinants are selected with the CS PT2 at the base :math:`\theta`
+    (``theta_cs``). At each CIPSI iteration, the other :math:`\theta` values of
+    the grid are only re-diagonalized on the same determinant set. The PT2 is
+    therefore only available at the base :math:`\theta`.
+
+``per_theta`` (``cs_cipsi_per_theta = true``)
+    ``run_stochastic_cs_cipsi_per_theta`` (``cipsi/stochastic_cs_cipsi_per_theta.irp.f``).
+    Outer loop over the :math:`\theta` grid: for each :math:`\theta`, a complete
+    CIPSI is converged, starting each time from the same initial determinant
+    set (cold start). The determinant space, the energy and the PT2 are thus
+    specific to each :math:`\theta`.
+
+Both algorithms end with the same summary printed by ``cs_print_traj``:
+
+- a banner ``CS SCAN SUMMARY  algorithm = fixed_ndet | per_theta``;
+- block A: convergence vs N_det, one row per (state, :math:`\theta`, iteration);
+- block B: final CS energies per :math:`\theta`;
+- block C: machine-readable records, one line per (state, :math:`\theta`,
+  iteration), starting with ``TRAJ``:
+  ``iter n_det theta state ReE ImE ReEPT2 ImEPT2 RePT2 ImPT2 variance``.
+
+In ``fixed_ndet`` mode the per-iteration CS energy tables are no longer
+printed (block C replaces them); ``diagonalize_h_cs`` still prints them.
+
+Example::
+
+    qp set cs theta_cs 0.1
+    qp set cs theta_step_size 0.02
+    qp set cs n_steps_cs 10
+    qp set cs cs_cipsi_per_theta true     # or false for fixed_ndet
+    qp run cs_fci > cs_fci.out
 
 Scripts
 -------

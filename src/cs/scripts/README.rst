@@ -25,14 +25,28 @@ Scripts
 
 ``read_cs_output.py``
     Parses one or more CS calculation output files and collects the data into
-    a ``pandas`` DataFrame.  Prints a CSV-style summary (one row per
-    state/theta/N_det combination) suitable for further analysis or plotting.
+    a ``pandas`` DataFrame.  The format of each file is detected automatically.
 
     Usage::
 
         python read_cs_output.py output1.dat [output2.dat ...]
 
-    Output columns: ``state``, ``theta``, ``Re(E_cs)``, ``Im(E_cs)``,
+    *New format* (``cs_fci`` output containing ``TRAJ`` records, printed by
+    ``cs_print_traj`` for both the ``fixed_ndet`` and ``per_theta`` algorithms):
+
+    - full trajectory, CSV with columns ``iter``, ``N_det``, ``theta``,
+      ``state``, ``Re(E_cs)``, ``Im(E_cs)``, ``Re(E_cs+PT2)``, ``Im(E_cs+PT2)``,
+      ``Re(PT2)``, ``Im(PT2)``, ``variance``;
+    - converged values per :math:`\theta` (last iteration of each
+      (state, :math:`\theta`)): ``theta``, then for each state ``Re(E)``,
+      ``Im(E)``, ``Re(E+PT2)``, ``Im(E+PT2)``.
+
+    In ``fixed_ndet`` mode the PT2 is only computed at the base :math:`\theta`
+    (first value of the grid); for the other values PT2 = 0 and E+PT2 = E.
+    The first-order corrections are not part of this format.
+
+    *Legacy format* (per-iteration "CS energies" / "Energy corrections" tables):
+    output columns ``state``, ``theta``, ``Re(E_cs)``, ``Im(E_cs)``,
     ``Re(Corr_E_cs)``, ``Im(Corr_E_cs)``, ``N_det``, ``E``, ``PT2``.
 
 ``deriv.py``

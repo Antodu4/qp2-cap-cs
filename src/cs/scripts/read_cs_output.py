@@ -72,6 +72,107 @@ def try_go_to_match(buff, i, match):
     return i
 
 
+# Columns of the TRAJ records printed by cs_print_traj (cs_traj_out.irp.f)
+TRAJ_CS_COLUMNS = ['iter', 'N_det', 'theta', 'state',
+                   'Re(E_cs)', 'Im(E_cs)', 'Re(E_cs+PT2)', 'Im(E_cs+PT2)',
+                   'Re(PT2)', 'Im(PT2)', 'variance']
+
+
+def is_traj_cs_output(f_path):
+    """Return True if the file contains TRAJ records (cs_fci output since the
+    unified CS trajectory output), False for the legacy format.
+
+    Args:
+        f_path : Path to the file to inspect.
+    """
+    with open(f_path, 'r') as f:
+        for line in f:
+            s = line.split()
+            if s and s[0] == "TRAJ":
+                return True
+    return False
+
+
+def read_traj_cs(f_path):
+    """Read the TRAJ records of a cs_fci output file.
+
+    Args:
+        f_path : Path to the output file.
+
+    Returns:
+        algo : Algorithm name from the CS SCAN SUMMARY banner
+               ('fixed_ndet' or 'per_theta'), or 'unknown'.
+        df   : pandas DataFrame with the TRAJ_CS_COLUMNS columns, one row
+               per (state, theta, iteration).
+    """
+    import pandas as pd
+
+    algo = 'unknown'
+    rows = []
+    with open(f_path, 'r') as f:
+        for line in f:
+            if "CS SCAN SUMMARY" in line and "algorithm =" in line:
+                algo = line.split("algorithm =")[-1].strip()
+                continue
+            s = line.split()
+            if len(s) == len(TRAJ_CS_COLUMNS) + 1 and s[0] == "TRAJ":
+                rows.append([int(s[1]), int(s[2]), float(s[3]), int(s[4])] +
+                            [float(x) for x in s[5:]])
+
+    df = pd.DataFrame(rows, columns=TRAJ_CS_COLUMNS)
+    return algo, df
+
+
+def print_traj_cs_summary(f_path):
+    """Print the full trajectory and the converged values per theta of a
+    cs_fci output file in the TRAJ format.
+
+    The converged value for each (state, theta) is the record with the largest
+    iteration index: the last CIPSI iteration in fixed_ndet mode, the last
+    iteration of the CIPSI of that theta in per_theta mode.
+
+    In fixed_ndet mode the PT2 is only computed at the base theta (first theta
+    of the grid); for the other theta values PT2 = 0 and E+PT2 = E.
+
+    Final table columns: theta, then for each state
+    Re(E), Im(E), Re(E+PT2), Im(E+PT2).
+
+    Args:
+        f_path : Path to the output file.
+    """
+    import sys
+    import numpy as np
+
+    algo, df = read_traj_cs(f_path)
+
+    print("# file: {}   algorithm = {}".format(f_path, algo))
+    if df.empty:
+        print("# No TRAJ record found.")
+        return
+
+    print("# Full trajectory (one row per state, theta, iteration)")
+    df.to_csv(sys.stdout, index=False)
+
+    last = df.loc[df.groupby(['state', 'theta'])['iter'].idxmax()]
+    states = sorted(last['state'].unique().tolist())
+    val_theta = sorted(last['theta'].unique().tolist())
+
+    print("# Converged values per theta: theta, then for each state "
+          "Re(E), Im(E), Re(E+PT2), Im(E+PT2)")
+    cols = ['Re(E_cs)', 'Im(E_cs)', 'Re(E_cs+PT2)', 'Im(E_cs+PT2)']
+    data = np.full((len(val_theta), 1 + 4*len(states)), np.nan)
+    data[:, 0] = val_theta
+    for k, theta in enumerate(val_theta):
+        for i, st in enumerate(states):
+            row = last[(last['state'] == st) & (last['theta'] == theta)]
+            if not row.empty:
+                data[k, 1+i*4:1+(i+1)*4] = row[cols].to_numpy()[0]
+
+    for row in data:
+        print(', '.join(map(str, row)))
+    print()
+
+
 if __name__ == "__main__":
     import sys
     import numpy as np
@@ -79,6 +180,16 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     files = sys.argv[1:]
+
+    # New format (TRAJ records printed by cs_print_traj)
+    traj_files = [fname for fname in files if is_traj_cs_output(fname)]
+    for fname in traj_files:
+        print_traj_cs_summary(fname)
+
+    # Legacy format (per-iteration "CS energies" tables printed by cs())
+    files = [fname for fname in files if fname not in traj_files]
+    if not files:
+        sys.exit()
 
     l_cipsi = []
     for fname in files:

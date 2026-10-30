@@ -130,6 +130,13 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   logical                       :: disk_based
   complex*16                    :: energy_shift(N_st_diag_in*davidson_sze_max), res
 
+  ! Debug of the state following (cs_debug_state_following)
+  complex*16, allocatable       :: dbg_u0(:,:), dbg_uold(:,:)
+  double precision, allocatable :: dbg_z(:), dbg_hn(:), dbg_oh(:,:), dbg_o0(:,:)
+  logical, allocatable          :: dbg_ok(:)
+  complex*16                    :: dbg_c
+  double precision, external    :: dbg_sf_ovh
+
   include 'constants.include.F'
 
   N_st_diag = N_st_diag_in
@@ -292,6 +299,17 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   ! ===================
 
   converged = .False.
+
+  if (cs_debug_state_following) then
+    ! u_0 : input vectors, kept frozen to measure the drift of the reference u_in
+    allocate(dbg_u0(sze,N_st), dbg_uold(sze,N_st))
+    allocate(dbg_z(N_st_diag*itermax), dbg_hn(N_st_diag*itermax), dbg_ok(N_st_diag*itermax))
+    allocate(dbg_oh(N_st_diag*itermax,N_st), dbg_o0(N_st_diag*itermax,N_st))
+    do l = 1, N_st
+      dbg_u0(1:sze,l) = u_in(1:sze,l)
+    enddo
+    call dbg_sf_legend
+  endif
 
   ! Guess
   do k=N_st+1,N_st_diag
@@ -515,6 +533,17 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           call zgemm('N','N', sze, N_st_diag, shift2,                    &
           (1.d0,0d0), U, size(U,1), y(1,j), size(y,1), (0.d0,0d0), U(1,shift2+1), size(U,1))
           do k = 1, N_st_diag
+            if (cs_debug_state_following) then
+              ! Norms and Hermitian overlaps of the Ritz vector before its c-normalization
+              call inner_prod_c(U(1,shift2+k), U(1,shift2+k), sze, dbg_c)
+              dbg_z(k+j-1) = cdabs(dbg_c)
+              call inner_product_complex(U(1,shift2+k), U(1,shift2+k), sze, dbg_c)
+              dbg_hn(k+j-1) = dble(dbg_c)
+              do l = 1, N_st
+                dbg_oh(k+j-1,l) = dbg_sf_ovh(U(1,shift2+k), u_in(1,l), sze)
+                dbg_o0(k+j-1,l) = dbg_sf_ovh(U(1,shift2+k), dbg_u0(1,l), sze)
+              enddo
+            endif
             call normalize_c(U(:,shift2+k),sze)
           enddo
 
@@ -528,6 +557,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           enddo
 
         enddo
+
+        ! state_ok is overwritten by the selection below
+        if (cs_debug_state_following) dbg_ok(1:shift2) = state_ok(1:shift2)
 
         state = 0
         do l = 1, N_st
@@ -553,6 +585,15 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
           state(l) = idx
         enddo
+
+        if (cs_debug_state_following) then
+          do l = 1, N_st
+            call dbg_sf_report(l, itertot, iter, sze, shift2, U, size(U,1), W, size(W,1), &
+                y, size(y,1), lambda, s2, H_jj, overlp(1,l), dbg_z, dbg_hn,                 &
+                dbg_oh(1,l), dbg_o0(1,l), dbg_ok, state(l), expected_s2,                   &
+                e_itheta_cs * dcmplx(nuclear_repulsion, 0d0))
+          enddo
+        endif
 
         ! tmp array before setting state_ok
         ok = .False.
@@ -674,6 +715,12 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     enddo
     !$OMP END PARALLEL DO
 
+    if (cs_debug_state_following) then
+      do l = 1, N_st
+        dbg_uold(1:sze,l) = u_in(1:sze,l)
+      enddo
+    endif
+
     call zgemm('N','N', sze, N_st_diag, shift2, (1.d0,0d0),      &
         W, size(W,1), y, size(y,1), (0.d0,0d0), u_in, size(u_in,1))
 
@@ -706,7 +753,20 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     enddo
     !$OMP END PARALLEL DO
 
+    if (cs_debug_state_following) then
+      ! Drift of the reference vector of the state following at this restart
+      do l = 1, N_st
+        write(6,'(A,I3,A,I2,2(A,F8.5))') ' SFR cyc', itertot, ' st', l,          &
+            '  |<u_new|u_old>| =', dbg_sf_ovh(u_in(1,l), dbg_uold(1,l), sze),       &
+            '  |<u_new|u_0>| =', dbg_sf_ovh(u_in(1,l), dbg_u0(1,l), sze)
+      enddo
+    endif
+
   enddo
+
+  if (cs_debug_state_following) then
+    deallocate(dbg_u0, dbg_uold, dbg_z, dbg_hn, dbg_ok, dbg_oh, dbg_o0)
+  endif
 
   do k=1,N_st_diag
     energies(k) = lambda(k)

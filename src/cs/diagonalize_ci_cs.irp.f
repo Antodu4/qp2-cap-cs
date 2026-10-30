@@ -312,6 +312,15 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
      deallocate(eigenvectors,eigenvalues)
    endif
 
+   if (cs_debug_state_following) then
+     ! u_in still holds the input vectors: did the diagonalization stay on them?
+     double precision, external :: dbg_sf_ovh
+     do k = 1, N_states
+       write(6,'(A,I2,A,F8.5)') ' SFF st', k, '  |<psi_out|psi_in>| =', &
+           dbg_sf_ovh(ci_eigenvectors_cs(1,k), u_in(1,k), N_det)
+     enddo
+   endif
+
    do k = 1, N_states
      do i = 1, N_det
        u_in(i,k) = ci_eigenvectors_cs(i,k)

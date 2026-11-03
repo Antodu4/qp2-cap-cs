@@ -65,6 +65,19 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
        complex*16, allocatable :: ci_eigenvectors_cs_tmp (:,:)
        complex*16, allocatable :: ci_s2_cs_tmp (:)
 
+       ! cs_dav_max_restart: stop doubling N_states_diag beyond this factor
+       ! (memory grows linearly with N_states_diag) and keep the last vectors
+       if (cs_dav_max_restart > 0) then
+         if (2*N_states_diag > cs_dav_max_restart*N_states_diag_save) then
+           print *, ''
+           print *, '!!! WARNING: complex Davidson not converged with', N_states_diag, &
+               'states in the diagonalization (cs_dav_max_restart =', cs_dav_max_restart, ')'
+           print *, '!!! The last (unconverged) vectors are kept'
+           print *, ''
+           exit
+         endif
+       endif
+
        N_states_diag  *= 2
 
        allocate (ci_electronic_energy_cs_tmp (N_states_diag) )

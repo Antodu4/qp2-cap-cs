@@ -544,7 +544,12 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
                 dbg_o0(k+j-1,l) = dbg_sf_ovh(U(1,shift2+k), dbg_u0(1,l), sze)
               enddo
             endif
-            call normalize_c(U(:,shift2+k),sze)
+            ! The Ritz vectors already have a Hermitian norm of 1 (normalization of y).
+            ! The c-normalization divides the overlap by sqrt(|psi^T psi|) and favours
+            ! spurious vectors with dispersed phases: skipped if cs_sf_hermitian_overlap.
+            if (.not. cs_sf_hermitian_overlap) then
+              call normalize_c(U(:,shift2+k),sze)
+            endif
           enddo
 
           ! Overlap using the Hermitian product for state following
@@ -561,30 +566,65 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         ! state_ok is overwritten by the selection below
         if (cs_debug_state_following) dbg_ok(1:shift2) = state_ok(1:shift2)
 
+        ! cs_sf_guard: Ritz vectors with Im(E_total) > cs_sf_im_tol are not physical
+        integer :: pass
+        logical :: accept
+        logical, allocatable :: im_bad(:)
+        allocate(im_bad(shift2))
+        do k = 1, shift2
+          im_bad(k) = cs_sf_guard .and.                                              &
+              (dimag(lambda(k) + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0)) > cs_sf_im_tol)
+        enddo
+
         state = 0
         do l = 1, N_st
 
-          omax = 0d0
-          idx = 0
-          do k = 1, shift2
+          ! Pass 1: S2 and Im(E) filters. With cs_sf_guard, if no candidate is
+          ! acceptable, pass 2 drops the Im(E) filter and pass 3 the S2 filter,
+          ! instead of leaving idx = 0.
+          do pass = 1, 3
+            omax = 0d0
+            idx = 0
+            do k = 1, shift2
 
-            ! Already used ?
-            used = .False.
-            do i = 1, N_st
-              if (state(i) == k) then
-                used = .True.
+              ! Already used ?
+              used = .False.
+              do i = 1, N_st
+                if (state(i) == k) then
+                  used = .True.
+                endif
+              enddo
+
+              if (pass == 1) then
+                accept = state_ok(k) .and. (.not. im_bad(k))
+              else if (pass == 2) then
+                accept = state_ok(k)
+              else
+                accept = .True.
+              endif
+
+              ! Maximum overlap
+              if ((cdabs(overlp(k,l)) > omax) .and. (.not. used) .and. accept) then
+                omax = cdabs(overlp(k,l))
+                idx = k
               endif
             enddo
-
-            ! Maximum overlap
-            if ((cdabs(overlp(k,l)) > omax) .and. (.not. used) .and. state_ok(k)) then
-              omax = cdabs(overlp(k,l))
-              idx = k
-            endif
+            if ((idx /= 0) .or. (.not. cs_sf_guard)) exit
           enddo
+
+          if (cs_sf_guard .and. (pass > 1)) then
+            if (pass == 2) then
+              print *, 'cs_sf_guard: no candidate with Im(E) <= cs_sf_im_tol for state', l, &
+                  '; Im(E) filter relaxed'
+            else
+              print *, 'cs_sf_guard: no candidate with the expected S2 for state', l,         &
+                  '; S2 and Im(E) filters relaxed'
+            endif
+          endif
 
           state(l) = idx
         enddo
+        deallocate(im_bad)
 
         if (cs_debug_state_following) then
           do l = 1, N_st
@@ -606,6 +646,13 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
             state_ok(k) = .False.
           endif
         enddo
+
+        ! A candidate chosen after relaxing the filters must be moved to the front too
+        if (cs_sf_guard) then
+          do l = 1, N_st
+            if (state(l) > 0) state_ok(state(l)) = .True.
+          enddo
+        endif
 
         deallocate(overlp,ok)
       endif

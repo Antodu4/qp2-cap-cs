@@ -514,9 +514,18 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           ! in U(1,shift2+1:shift2+1+N_st_diag) as temporary array
           call zgemm('N','N', sze, N_st_diag, shift2,                    &
           (1.d0,0d0), U, size(U,1), y(1,j), size(y,1), (0.d0,0d0), U(1,shift2+1), size(U,1))
+          ! The Ritz vectors are normalized with the Hermitian norm, consistent with
+          ! the Hermitian overlap below (y^H (U^H U) y = 1 above, so this only
+          ! removes round-off). The former c-normalization divided the overlap by
+          ! sqrt(|psi^T psi|) and favoured spurious Ritz vectors with dispersed
+          ! phases (|psi^T psi| << 1), which could replace the followed root.
           do k = 1, N_st_diag
-            call normalize_c(U(:,shift2+k),sze)
+            call normalize_complex(U(:,shift2+k),sze)
           enddo
+          ! Former version (c-normalization):
+          ! do k = 1, N_st_diag
+          !   call normalize_c(U(:,shift2+k),sze)
+          ! enddo
 
           ! Overlap using the Hermitian product for state following
           do l = 1, N_st

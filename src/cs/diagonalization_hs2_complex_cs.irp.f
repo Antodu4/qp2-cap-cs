@@ -137,6 +137,13 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   complex*16                    :: dbg_c
   double precision, external    :: dbg_sf_ovh
 
+  ! State following and restarts (cs_sf_fixed_ref, cs_sf_window, cs_dav_*)
+  complex*16, allocatable       :: u_ref(:,:), u_thick(:,:), y_keep(:,:), y_keep_prev(:,:)
+  complex*16                    :: e_win_ref(N_st), e_tot
+  logical                       :: window_on, win_ok, thick_next
+  integer                       :: off, idx0, n_rej_s2, n_rej_im, n_rej_win, n_thick
+  character*(16)                :: dv_why
+
   include 'constants.include.F'
 
   N_st_diag = N_st_diag_in
@@ -311,8 +318,33 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     call dbg_sf_legend
   endif
 
+  ! u_ref : input vectors of the call, frozen (reference of cs_sf_fixed_ref,
+  ! drift measured by cs_dav_debug)
+  if (cs_sf_fixed_ref .or. cs_dav_debug) then
+    allocate(u_ref(sze,N_st))
+    do l = 1, N_st
+      u_ref(1:sze,l) = u_in(1:sze,l)
+    enddo
+  endif
+  if (cs_dav_thick_restart) then
+    allocate(u_thick(sze,N_st_diag))
+    allocate(y_keep(N_st_diag*itermax,N_st_diag), y_keep_prev(N_st_diag*itermax,N_st_diag))
+  endif
+  window_on = (cs_sf_window > 0.d0) .and. state_following
+  e_win_ref = (0.d0,0.d0)
+  off       = 0
+  n_rej_s2  = 0
+  n_rej_im  = 0
+  n_rej_win = 0
+  n_thick   = 0
+
   ! Guess
   do k=N_st+1,N_st_diag
+    if (cs_dav_retry_ritz) then
+      ! Retry of diagonalize_ci_cs: the extra vectors are the Ritz vectors of
+      ! the previous call, keep them
+      if (maxval(cdabs(u_in(1:sze,k))) > 0.d0) cycle
+    endif
     do i=1,sze
         call random_number(r1)
         call random_number(r2)
@@ -363,16 +395,29 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
   do while (.not.converged)
     itertot = itertot+1
-    if (itertot == 8) then
+    if (itertot > max(1,cs_dav_max_cycles)) then
       exit
     endif
 
+    if (cs_dav_thick_restart) then
+      y_keep      = (0.d0,0.d0)
+      y_keep_prev = (0.d0,0.d0)
+    endif
+
+    ! off = N_st_diag after a thick restart: the cycle starts with the current
+    ! and the previous Ritz vectors (2 N_st_diag vectors). Not possible if
+    ! itermax was reduced too much (zggev failure below).
+    if (itermax-1 - off/N_st_diag < 1) off = 0
     iter = 0
-    do while (iter < itermax-1)
+    do while (iter < itermax-1 - off/N_st_diag)
       iter += 1
 
-      shift  = N_st_diag*(iter-1)
-      shift2 = N_st_diag*iter
+      if (iter == 1) then
+        shift  = 0
+      else
+        shift  = N_st_diag*(iter-1) + off
+      endif
+      shift2 = N_st_diag*iter + off
 
         if (do_qr_dav) then
           ! Orthogonalization of the guess vectors
@@ -408,9 +453,11 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           !$OMP END PARALLEL DO
         endif
 
-        call H_S2_u_0_nstates_openmp_complex_cs(W(1,shift+1),S_d,U(1,shift+1),N_st_diag,sze)
-
-        S(1:sze,shift+1:shift+N_st_diag) = cmplx(real(dble(S_d(1:sze,1:N_st_diag))), real(dimag(S_d(1:sze,1:N_st_diag))))
+        ! N_st_diag new vectors, or 2 N_st_diag at the first iteration after a thick restart
+        do j = shift+1, shift2, N_st_diag
+          call H_S2_u_0_nstates_openmp_complex_cs(W(1,j),S_d,U(1,j),N_st_diag,sze)
+          S(1:sze,j:j+N_st_diag-1) = cmplx(real(dble(S_d(1:sze,1:N_st_diag))), real(dimag(S_d(1:sze,1:N_st_diag))))
+        enddo
 
       ! Compute s_kl = <u_k | S_l> = <u_k| S2 |u_l>
       ! -------------------------------------------
@@ -442,6 +489,18 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       call zgemm('C','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
           (0.d0,0d0), s_tmp, size(s_tmp,1))
+
+      ! cs_sf_window: reference energy of each state, the Hermitian Rayleigh
+      ! quotient of its input vector at the first iteration of the call
+      if (window_on .and. (itertot == 1) .and. (iter == 1)) then
+        do l = 1, N_st
+          e_win_ref(l) = h(l,l) / s_tmp(l,l) + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0)
+          if (cs_dav_debug) then
+            write(6,'(A,I3,A,2F18.10,A,ES10.2)') ' DV window state', l, '  E_ref =', e_win_ref(l), &
+                '  half-width =', cs_sf_window
+          endif
+        enddo
+      endif
 
       ! Diagonalize the projected Hamiltonian using the generalized eigenvalue problem
       ! h y = lambda s_tmp y
@@ -555,14 +614,26 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
             endif
           enddo
 
-          ! Overlap using the Hermitian product for state following
-          do l = 1, N_st
-            do k = 1, N_st_diag
-              do i = 1, sze
-                overlp(k+j-1,l) += u_in(i,l) * DCONJG(U(i,shift2+k))
+          ! Overlap using the Hermitian product for state following. Reference:
+          ! the input vectors of the call (cs_sf_fixed_ref) or the vectors of
+          ! the last restart (u_in)
+          if (cs_sf_fixed_ref) then
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_ref(i,l) * DCONJG(U(i,shift2+k))
+                enddo
               enddo
             enddo
-          enddo
+          else
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_in(i,l) * DCONJG(U(i,shift2+k))
+                enddo
+              enddo
+            enddo
+          endif
 
         enddo
 
@@ -582,10 +653,11 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         state = 0
         do l = 1, N_st
 
-          ! Pass 1: S2 and Im(E) filters. With cs_sf_guard, if no candidate is
-          ! acceptable, pass 2 drops the Im(E) filter and pass 3 the S2 filter,
-          ! instead of leaving idx = 0.
-          do pass = 1, 3
+          ! Pass 1: S2, Im(E) (cs_sf_guard) and energy window (cs_sf_window)
+          ! filters. If no candidate is acceptable, pass 2 drops the Im(E)
+          ! filter, pass 3 the window and pass 4 the S2 filter, instead of
+          ! leaving idx = 0. Without cs_sf_guard and cs_sf_window, only pass 1.
+          do pass = 1, 4
             omax = 0d0
             idx = 0
             do k = 1, shift2
@@ -598,9 +670,17 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
                 endif
               enddo
 
+              win_ok = .True.
+              if (window_on) then
+                e_tot  = lambda(k) + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0)
+                win_ok = cdabs(e_tot - e_win_ref(l)) <= cs_sf_window
+              endif
+
               if (pass == 1) then
-                accept = state_ok(k) .and. (.not. im_bad(k))
+                accept = state_ok(k) .and. (.not. im_bad(k)) .and. win_ok
               else if (pass == 2) then
+                accept = state_ok(k) .and. win_ok
+              else if (pass == 3) then
                 accept = state_ok(k)
               else
                 accept = .True.
@@ -612,16 +692,63 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
                 idx = k
               endif
             enddo
-            if ((idx /= 0) .or. (.not. cs_sf_guard)) exit
+            if ((idx /= 0) .or. (.not. (cs_sf_guard .or. window_on))) exit
           enddo
 
-          if (cs_sf_guard .and. (pass > 1)) then
+          if (pass > 1) then
             if (pass == 2) then
               print *, 'cs_sf_guard: no candidate with Im(E) <= cs_sf_im_tol for state', l, &
                   '; Im(E) filter relaxed'
+            else if (pass == 3) then
+              print *, 'cs_sf_window: no candidate in the energy window for state', l,      &
+                  '; window and Im(E) filters relaxed'
             else
-              print *, 'cs_sf_guard: no candidate with the expected S2 for state', l,         &
-                  '; S2 and Im(E) filters relaxed'
+              print *, 'cs_sf: no candidate with the expected S2 for state', l,              &
+                  '; all filters relaxed'
+            endif
+          endif
+
+          ! cs_dav_debug: the candidate of maximum overlap, without any filter,
+          ! and the filters that rejected it when it is not the one chosen
+          if (cs_dav_debug) then
+            omax = 0d0
+            idx0 = 0
+            do k = 1, shift2
+              used = .False.
+              do i = 1, l-1
+                if (state(i) == k) used = .True.
+              enddo
+              if ((cdabs(overlp(k,l)) > omax) .and. (.not. used)) then
+                omax = cdabs(overlp(k,l))
+                idx0 = k
+              endif
+            enddo
+            if ((idx0 /= idx) .and. (idx0 > 0)) then
+              dv_why = ''
+              if (.not. state_ok(idx0)) then
+                dv_why = trim(dv_why)//' S2'
+                n_rej_s2 += 1
+              endif
+              if (im_bad(idx0)) then
+                dv_why = trim(dv_why)//' Im'
+                n_rej_im += 1
+              endif
+              if (window_on) then
+                e_tot = lambda(idx0) + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0)
+                if (cdabs(e_tot - e_win_ref(l)) > cs_sf_window) then
+                  dv_why = trim(dv_why)//' window'
+                  n_rej_win += 1
+                endif
+              endif
+              e_tot = lambda(idx0) + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0)
+              write(6,'(A,I4,A,I3,A,I2,A,2F16.10,A,F8.5,A,A)') ' DV reject cyc', itertot,  &
+                  ' it', iter, ' st', l, '  max-overlap E =', e_tot,                        &
+                  '  |ov| =', cdabs(overlp(idx0,l)), '  filters:', trim(dv_why)
+              if (idx > 0) then
+                e_tot = lambda(idx) + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0)
+                write(6,'(A,I4,A,I3,A,I2,A,2F16.10,A,F8.5)') ' DV chosen cyc', itertot,   &
+                    ' it', iter, ' st', l, '  E =', e_tot, '  |ov| =', cdabs(overlp(idx,l))
+              endif
             endif
           endif
 
@@ -677,6 +804,14 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
       ! Swapped eigenvectors
       prev_y = y
+
+      ! cs_dav_thick_restart: Ritz vectors (in the basis U) of this iteration
+      ! and of the previous one
+      if (cs_dav_thick_restart) then
+        y_keep_prev = y_keep
+        y_keep = (0.d0,0.d0)
+        y_keep(1:shift2,1:N_st_diag) = y(1:shift2,1:N_st_diag)
+      endif
 
       ! Express eigenvectors of h in the determinant basis
       ! --------------------------------------------------
@@ -751,6 +886,14 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
     enddo
 
+    ! cs_dav_thick_restart: previous Ritz vectors, kept in the next cycle
+    ! (needs two iterations in this cycle; not after convergence)
+    thick_next = cs_dav_thick_restart .and. (iter >= 2) .and. (.not. converged)
+    if (thick_next) then
+      call zgemm('N','N', sze, N_st_diag, shift2, (1.d0,0d0),    &
+          U, size(U,1), y_keep_prev, size(y_keep_prev,1), (0.d0,0d0), u_thick, size(u_thick,1))
+    endif
+
     ! Re-contract U and update S and W
     ! --------------------------------
 
@@ -803,6 +946,32 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     enddo
     !$OMP END PARALLEL DO
 
+    ! Thick restart: the next cycle starts with the current Ritz vectors
+    ! (1:N_st_diag) and the previous ones (N_st_diag+1:2 N_st_diag); H and S2
+    ! are applied to both at its first iteration
+    if (thick_next) then
+      !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
+      do k=1,N_st_diag
+        do i=1,sze
+          U(i,N_st_diag+k) = u_thick(i,k)
+        enddo
+      enddo
+      !$OMP END PARALLEL DO
+      off = N_st_diag
+      n_thick += 1
+    else
+      off = 0
+    endif
+
+    if (cs_dav_debug) then
+      write(6,'(A,I4,A,I3,A,I5,A,L2,A,100ES10.2)') ' DV restart cyc', itertot, '  iterations', iter, &
+          '  subspace', shift2, '  thick', thick_next, '  residuals', (dble(residual_norm(l)), l=1,N_st)
+      do l = 1, N_st
+        write(6,'(A,I4,A,I2,A,F10.7)') ' DV restart cyc', itertot, ' st', l,                         &
+            '  |<u|u_input>| =', dbg_sf_ovh(u_in(1,l), u_ref(1,l), sze)
+      enddo
+    endif
+
     if (cs_debug_state_following) then
       ! Drift of the reference vector of the state following at this restart
       do l = 1, N_st
@@ -817,6 +986,14 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   if (cs_debug_state_following) then
     deallocate(dbg_u0, dbg_uold, dbg_z, dbg_hn, dbg_ok, dbg_oh, dbg_o0)
   endif
+
+  if (cs_dav_debug) then
+    write(6,'(A,I4,A,L2,A,I4,A,3I6)') ' DV end  cycles', min(itertot, max(1,cs_dav_max_cycles)), &
+        '  converged', converged, '  thick restarts', n_thick,                                &
+        '  max-overlap rejected by S2 / Im / window', n_rej_s2, n_rej_im, n_rej_win
+  endif
+  if (allocated(u_ref)) deallocate(u_ref)
+  if (allocated(u_thick)) deallocate(u_thick, y_keep, y_keep_prev)
 
   do k=1,N_st_diag
     energies(k) = lambda(k)

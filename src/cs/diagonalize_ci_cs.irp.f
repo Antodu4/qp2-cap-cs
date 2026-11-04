@@ -58,12 +58,37 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
        size(ci_eigenvectors_cs,1),ci_electronic_energy_cs,               &
        N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
 
-     integer :: N_states_diag_save
+     integer :: N_states_diag_save, n_retry
      N_states_diag_save = N_states_diag
+     n_retry = 0
      do while (.not.converged)
        complex*16, allocatable :: ci_electronic_energy_cs_tmp (:)
        complex*16, allocatable :: ci_eigenvectors_cs_tmp (:,:)
        complex*16, allocatable :: ci_s2_cs_tmp (:)
+
+       n_retry += 1
+
+       ! cs_dav_retry_ritz: call Davidson again with the same N_states_diag and
+       ! the Ritz vectors of the previous call (all the N_states_diag columns of
+       ! ci_eigenvectors_cs), at most cs_dav_max_restart times if positive
+       if (cs_dav_retry_ritz) then
+         if ((cs_dav_max_restart > 0) .and. (n_retry > cs_dav_max_restart)) then
+           print *, ''
+           print *, '!!! WARNING: complex Davidson not converged after', n_retry-1,          &
+               'retries with the Ritz vectors (cs_dav_max_restart =', cs_dav_max_restart, ')'
+           print *, '!!! The last (unconverged) vectors are kept'
+           print *, ''
+           exit
+         endif
+         if (cs_dav_debug) then
+           write(6,'(A,I4,A,I5,A)') ' DV retry', n_retry, '  N_states_diag', N_states_diag, &
+               '  guess: Ritz vectors of the previous call'
+         endif
+         call davidson_diag_HS2_complex_cs(psi_det,ci_eigenvectors_cs, ci_s2_cs, &
+           size(ci_eigenvectors_cs,1),ci_electronic_energy_cs,               &
+           N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+         cycle
+       endif
 
        ! cs_dav_max_restart: stop doubling N_states_diag beyond this factor
        ! (memory grows linearly with N_states_diag) and keep the last vectors
@@ -79,6 +104,10 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
        endif
 
        N_states_diag  *= 2
+       if (cs_dav_debug) then
+         write(6,'(A,I4,A,I5,A)') ' DV retry', n_retry, '  N_states_diag', N_states_diag, &
+             '  guess: previous vectors + random vectors'
+       endif
 
        allocate (ci_electronic_energy_cs_tmp (N_states_diag) )
        allocate (ci_eigenvectors_cs_tmp (N_det,N_states_diag) )

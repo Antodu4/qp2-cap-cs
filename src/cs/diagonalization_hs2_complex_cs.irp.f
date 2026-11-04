@@ -544,10 +544,13 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
                 dbg_o0(k+j-1,l) = dbg_sf_ovh(U(1,shift2+k), dbg_u0(1,l), sze)
               enddo
             endif
-            ! The Ritz vectors already have a Hermitian norm of 1 (normalization of y).
             ! The c-normalization divides the overlap by sqrt(|psi^T psi|) and favours
-            ! spurious vectors with dispersed phases: skipped if cs_sf_hermitian_overlap.
-            if (.not. cs_sf_hermitian_overlap) then
+            ! spurious vectors with dispersed phases. With cs_sf_hermitian_overlap, the
+            ! Ritz vectors are normalized with the Hermitian norm, consistent with the
+            ! Hermitian overlap below (a no-op up to round-off: y^H (U^H U) y = 1 above).
+            if (cs_sf_hermitian_overlap) then
+              call normalize_complex(U(:,shift2+k),sze)
+            else
               call normalize_c(U(:,shift2+k),sze)
             endif
           enddo

@@ -15,9 +15,16 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
 ! determinant space (optimized at the base theta) is reused for every theta.
 !
 ! For a faithful "complete CIPSI per theta", every theta restarts from the
-! same bootstrap determinant set (see the RESET block below). Switching to a
-! warm start (carry the previous theta's space over) is a one-line change
-! documented there.
+! same bootstrap determinant set (see the RESET block below), with a real
+! Davidson guess.
+!
+! WARM START (cs_warm_start_det / cs_warm_start_cfg): every theta after the
+! first starts from the converged complex wave function of the previous theta,
+! truncated to 1-cs_warm_start_tol of its weight, by determinants (det) or by
+! whole configurations (cfg). The Davidson guess is the truncated complex
+! wave function (already rotated), and the discarded determinants can be
+! selected again at the new theta. cs_warm_start_debug prints diagnostics
+! (lines starting with WS).
   END_DOC
 
   integer                        :: i,j,k,l
@@ -51,6 +58,16 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   integer, allocatable           :: key(:), prev_key(:)
   integer                        :: idx
   logical                        :: ok
+
+  ! warm start: truncated wave function of the previous theta
+  logical                        :: warm, early_exit
+  integer                        :: n_keep, n_drop, n_resel
+  logical, allocatable           :: keep(:)
+  integer(bit_kind), allocatable :: det_keep(:,:,:), det_drop(:,:,:)
+  complex*16, allocatable        :: cs_keep(:,:), guess(:,:)
+  double precision               :: t_theta, t0, t1
+  double precision, allocatable  :: ovl(:)
+  integer, external              :: get_index_in_psi_det_sorted_bit
 
   complex*16                     :: e_itheta
   double precision               :: hf_energy_ref
@@ -86,6 +103,10 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   endif
   if (n_steps_cs > 1 .and. theta_step_size <= 0d0) then
     print*,'Please set theta_step_size > 0d0 to screen a range of theta values'
+    call abort()
+  endif
+  if (cs_warm_start_det .and. cs_warm_start_cfg) then
+    print*,'cs_warm_start_det and cs_warm_start_cfg are exclusive'
     call abort()
   endif
   n_theta = n_steps_cs
@@ -139,25 +160,88 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
                                      ' -- theta = ', theta_cs
     write(*,'(A)') '################################################################################'
 
-    ! -------------------------------------------------------------------------
-    ! RESET to the bootstrap determinant set => a complete CIPSI for each theta.
-    ! For a warm start instead (reuse the previous theta's space), comment the
-    ! three assignments + SOFT_TOUCH below and the diagonalize_CI that follows.
-    ! -------------------------------------------------------------------------
-    N_det = n_det_boot
-    psi_det (:,:,1:n_det_boot)         = det_boot(:,:,1:n_det_boot)
-    psi_coef(1:n_det_boot,1:N_states)  = coef_boot(1:n_det_boot,1:N_states)
-    SOFT_TOUCH N_det psi_det psi_coef
+    call wall_time(t_theta)
+    warm = (cs_warm_start_det .or. cs_warm_start_cfg) .and. (k_theta > 1)
+    early_exit = .False.
+
+    if (warm) then
+      ! -----------------------------------------------------------------------
+      ! WARM START from the previous theta: its converged space (tmp_det,
+      ! tmp_cs), truncated to 1-cs_warm_start_tol of the weight, by
+      ! determinants (cs_warm_start_det) or by configurations (cs_warm_start_cfg)
+      ! -----------------------------------------------------------------------
+      if (allocated(det_keep)) deallocate(det_keep,cs_keep,keep)
+      allocate(det_keep(N_int,2,size(tmp_cs,1)), cs_keep(size(tmp_cs,1),N_states))
+      allocate(keep(size(tmp_cs,1)))
+      call cs_truncate_wf(size(tmp_cs,1), tmp_det, tmp_cs, cs_warm_start_tol, &
+                          cs_warm_start_cfg, n_keep, det_keep, cs_keep, keep)
+      write(*,'(A,A,I10,A,I10,A,ES10.2,A)') ' Warm start (', &
+                          trim(merge('cfg','det',cs_warm_start_cfg)), '): ', n_keep, ' /', &
+                          size(tmp_cs,1), ' determinants kept (discarded weight < ', &
+                          cs_warm_start_tol, ')'
+      if (cs_warm_start_debug) then
+        call cs_ws_print_truncation(size(tmp_cs,1), tmp_det, tmp_cs, keep)
+        ! discarded determinants, to count those selected again at convergence
+        n_drop = size(tmp_cs,1) - n_keep
+        if (allocated(det_drop)) deallocate(det_drop)
+        allocate(det_drop(N_int,2,max(n_drop,1)))
+        j = 0
+        do i = 1, size(tmp_cs,1)
+          if (.not. keep(i)) then
+            j = j+1
+            det_drop(:,:,j) = tmp_det(:,:,i)
+          endif
+        enddo
+      endif
+      N_det = n_keep
+      psi_det (:,:,1:n_keep)        = det_keep(:,:,1:n_keep)
+      psi_coef(1:n_keep,1:N_states) = dble(cs_keep(1:n_keep,1:N_states))
+      SOFT_TOUCH N_det psi_det psi_coef
+    else
+      ! -----------------------------------------------------------------------
+      ! RESET to the bootstrap determinant set => a complete CIPSI for each theta.
+      ! -----------------------------------------------------------------------
+      N_det = n_det_boot
+      psi_det (:,:,1:n_det_boot)         = det_boot(:,:,1:n_det_boot)
+      psi_coef(1:n_det_boot,1:N_states)  = coef_boot(1:n_det_boot,1:N_states)
+      SOFT_TOUCH N_det psi_det psi_coef
+    endif
     if (s2_eig) then
       call make_s2_eigenfunction
     endif
     call diagonalize_CI
+    if (warm .and. cs_warm_start_debug) then
+      write(*,'(A,I10,A,I10)') ' WS spin completion: N_det = ', N_det, &
+                               '   added determinants = ', N_det - n_keep
+    endif
 
-    ! Initial CS wavefunction at this theta (guess from the real coefficients)
+    ! Initial CS wavefunction at this theta: the previous theta's complex
+    ! coefficients (warm start) or the real coefficients
     if (allocated(psi_cs)) deallocate(psi_cs,energy,corr)
     allocate(psi_cs(N_det,N_states), energy(N_states), corr(N_states))
-    psi_cs = dcmplx(psi_coef,0d0)
+    if (warm) then
+      call cs_remap_guess(n_keep, det_keep, cs_keep, psi_cs)
+    else
+      psi_cs = dcmplx(psi_coef,0d0)
+    endif
+    if (cs_warm_start_debug) then
+      if (allocated(ovl)) deallocate(ovl)
+      allocate(guess(N_det,N_states), ovl(N_states))
+      guess = psi_cs
+      call wall_time(t0)
+    endif
     call diagonalize_ci_cs(psi_cs,energy,corr)   ! sets psi_cs_coef, psi_energy_cs
+    if (cs_warm_start_debug) then
+      call wall_time(t1)
+      call cs_hermitian_overlap(N_det, guess, psi_cs, ovl)
+      write(*,'(A,A,A,F12.2,A)') ' WS first CS diagonalization (', &
+                                 trim(merge('warm','cold',warm)), ' guess): ', t1-t0, ' s'
+      do s = 1, N_states
+        write(*,'(A,I3,A,F12.8,A,2F18.10)') ' WS state ', s, '  |<guess|psi>| = ', ovl(s), &
+                                            '   E = ', dble(energy(s)), dimag(energy(s))
+      enddo
+      deallocate(guess)
+    endif
 
     if (allocated(tmp_cs)) deallocate(tmp_cs,tmp_det)
     allocate(tmp_cs(N_det,N_states), tmp_det(N_int,2,N_det))
@@ -241,6 +325,14 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       touch psi_coef
 
       if (qp_stop()) exit
+
+      ! Warm start: the truncated space may already be converged at this theta;
+      ! do not add the selected determinants (the space would only grow from
+      ! one theta to the next)
+      if (warm .and. (maxval(abs(pt2_data % pt2(1:N_states))) <= pt2_max)) then
+        early_exit = .True.
+        exit
+      endif
 
       ! Add selected determinants
       call copy_H_apply_buffer_to_wf()
@@ -358,6 +450,24 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
 
     write(*,'(A,ES16.8,A,I10)') ' Converged theta = ', theta_cs, '   N_det = ', N_det
 
+    if (cs_warm_start_debug) then
+      call wall_time(t1)
+      write(*,'(A,ES12.4,A,I4,A,I10,A,F12.2,A,L2)') ' WS converged theta = ', theta_cs, &
+            '   CIPSI iterations = ', inner_iter-1, '   N_det = ', N_det, &
+            '   time = ', t1-t_theta, ' s   early exit = ', early_exit
+      if (warm) then
+        PROVIDE psi_det_sorted_bit
+        n_resel = 0
+        do i = 1, n_drop
+          if (get_index_in_psi_det_sorted_bit(det_drop(1,1,i), N_int) > 0) then
+            n_resel = n_resel + 1
+          endif
+        enddo
+        write(*,'(A,I10,A,I10,A,I10)') ' WS start space = ', n_keep, &
+              '   discarded = ', n_drop, '   discarded and selected again = ', n_resel
+      endif
+    endif
+
     if (qp_stop()) exit
   enddo
 
@@ -376,5 +486,270 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   deallocate(e_theta, det_boot, coef_boot, zeros)
   if (allocated(psi_cs)) deallocate(psi_cs,energy,corr)
   if (allocated(tmp_cs)) deallocate(tmp_cs,tmp_det)
+  if (allocated(det_keep)) deallocate(det_keep,cs_keep,keep)
+  if (allocated(det_drop)) deallocate(det_drop)
+  if (allocated(ovl)) deallocate(ovl)
+
+end
+
+
+subroutine cs_det_weights(n, coef, w)
+  implicit none
+  BEGIN_DOC
+! Weight of each determinant in a complex wave function, averaged over the
+! states: w_i = 1/N_states sum_s |c_is|^2 / <c_s|c_s> (Hermitian norm).
+  END_DOC
+  integer, intent(in)            :: n
+  complex*16, intent(in)         :: coef(n,N_states)
+  double precision, intent(out)  :: w(n)
+  double precision               :: norm
+  integer                        :: i, s
+
+  w = 0.d0
+  do s = 1, N_states
+    norm = 0.d0
+    do i = 1, n
+      norm += dble(dconjg(coef(i,s))*coef(i,s))
+    enddo
+    do i = 1, n
+      w(i) += dble(dconjg(coef(i,s))*coef(i,s)) / (norm*dble(N_states))
+    enddo
+  enddo
+
+end
+
+
+subroutine cs_det_to_cfg(n, det, cfg, n_cfg)
+  use bitmasks
+  implicit none
+  BEGIN_DOC
+! Configuration index (1..n_cfg) of each determinant of det: determinants
+! with the same spatial occupation (singly and doubly occupied orbitals)
+! belong to the same configuration.
+  END_DOC
+  integer, intent(in)            :: n
+  integer(bit_kind), intent(in)  :: det(N_int,2,n)
+  integer, intent(out)           :: cfg(n), n_cfg
+  integer(bit_kind), allocatable :: occ(:,:,:)
+  integer, allocatable           :: key(:)
+  integer                        :: i, k
+
+  allocate(occ(N_int,2,n), key(n))
+  do i = 1, n
+    do k = 1, N_int
+      occ(k,1,i) = ieor(det(k,1,i),det(k,2,i))
+      occ(k,2,i) = iand(det(k,1,i),det(k,2,i))
+    enddo
+    key(i) = i
+  enddo
+  call recursive_int_sort(occ,key,n,N_int,1)
+
+  n_cfg = 0
+  do i = 1, n
+    if (i == 1) then
+      n_cfg = 1
+    else if (any(occ(:,:,i) /= occ(:,:,i-1))) then
+      n_cfg = n_cfg + 1
+    endif
+    cfg(key(i)) = n_cfg
+  enddo
+  deallocate(occ, key)
+
+end
+
+
+subroutine cs_truncate_wf(n_in, det_in, coef_in, tol, by_cfg, n_out, det_out, coef_out, keep)
+  use bitmasks
+  implicit none
+  BEGIN_DOC
+! Truncates a complex wave function to 1-tol of its weight (cs_det_weights),
+! discarding the smallest weights first:
+!   by_cfg = .False. : determinant by determinant;
+!   by_cfg = .True.  : whole configurations (weight of a configuration = sum of
+!                      the weights of its determinants), so the truncated space
+!                      stays spin-complete.
+! At least N_states_diag determinants are kept. keep(i) tells whether the
+! determinant i is kept; the kept determinants keep their original order.
+  END_DOC
+  integer, intent(in)            :: n_in
+  integer(bit_kind), intent(in)  :: det_in(N_int,2,n_in)
+  complex*16, intent(in)         :: coef_in(n_in,N_states)
+  double precision, intent(in)   :: tol
+  logical, intent(in)            :: by_cfg
+  integer, intent(out)           :: n_out
+  integer(bit_kind), intent(out) :: det_out(N_int,2,n_in)
+  complex*16, intent(out)        :: coef_out(n_in,N_states)
+  logical, intent(out)           :: keep(n_in)
+
+  double precision, allocatable  :: w(:), wu(:)
+  integer, allocatable           :: cfg(:), iorder(:), n_det_u(:)
+  logical, allocatable           :: keep_u(:)
+  double precision               :: wsum
+  integer                        :: i, n_u, n_det_kept
+
+  allocate(w(n_in), cfg(n_in))
+  call cs_det_weights(n_in, coef_in, w)
+
+  ! Units of the truncation: determinants or configurations
+  if (by_cfg) then
+    call cs_det_to_cfg(n_in, det_in, cfg, n_u)
+  else
+    n_u = n_in
+    do i = 1, n_in
+      cfg(i) = i
+    enddo
+  endif
+  allocate(wu(n_u), iorder(n_u), keep_u(n_u), n_det_u(n_u))
+  wu = 0.d0
+  n_det_u = 0
+  do i = 1, n_in
+    wu(cfg(i)) -= w(i)                  ! -weight: dsort gives decreasing weight
+    n_det_u(cfg(i)) += 1
+  enddo
+  do i = 1, n_u
+    iorder(i) = i
+  enddo
+  call dsort(wu, iorder, n_u)
+
+  ! Keep the heaviest units until 1-tol of the weight (and N_states_diag dets)
+  keep_u = .False.
+  wsum = 0.d0
+  n_det_kept = 0
+  do i = 1, n_u
+    if ( (wsum >= 1.d0 - tol) .and. (n_det_kept >= N_states_diag) ) exit
+    keep_u(iorder(i)) = .True.
+    wsum = wsum - wu(i)
+    n_det_kept = n_det_kept + n_det_u(iorder(i))
+  enddo
+
+  n_out = 0
+  do i = 1, n_in
+    keep(i) = keep_u(cfg(i))
+    if (keep(i)) then
+      n_out = n_out + 1
+      det_out(:,:,n_out) = det_in(:,:,i)
+      coef_out(n_out,:)  = coef_in(i,:)
+    endif
+  enddo
+  deallocate(w, wu, cfg, iorder, keep_u, n_det_u)
+
+end
+
+
+subroutine cs_ws_print_truncation(n, det, coef, keep)
+  use bitmasks
+  implicit none
+  BEGIN_DOC
+! Debug of the warm-start truncation (lines starting with WS): determinants and
+! configurations kept, configurations cut (partly kept, only possible for a
+! truncation by determinants), discarded weight per state.
+  END_DOC
+  integer, intent(in)            :: n
+  integer(bit_kind), intent(in)  :: det(N_int,2,n)
+  complex*16, intent(in)         :: coef(n,N_states)
+  logical, intent(in)            :: keep(n)
+  integer, allocatable           :: cfg(:), n_in_cfg(:), n_kept_cfg(:)
+  double precision               :: norm, wdrop
+  integer                        :: i, s, n_cfg
+
+  allocate(cfg(n))
+  call cs_det_to_cfg(n, det, cfg, n_cfg)
+  allocate(n_in_cfg(n_cfg), n_kept_cfg(n_cfg))
+  n_in_cfg = 0
+  n_kept_cfg = 0
+  do i = 1, n
+    n_in_cfg(cfg(i)) += 1
+    if (keep(i)) n_kept_cfg(cfg(i)) += 1
+  enddo
+  write(*,'(A,I10,A,I10)') ' WS truncation: determinants kept = ', count(keep), ' /', n
+  write(*,'(A,I10,A,I10,A,I10)') ' WS truncation: configurations kept = ', &
+        count(n_kept_cfg == n_in_cfg), ' /', n_cfg, '   cut = ', &
+        count((n_kept_cfg > 0) .and. (n_kept_cfg < n_in_cfg))
+  do s = 1, N_states
+    norm  = 0.d0
+    wdrop = 0.d0
+    do i = 1, n
+      norm = norm + dble(dconjg(coef(i,s))*coef(i,s))
+      if (.not. keep(i)) wdrop = wdrop + dble(dconjg(coef(i,s))*coef(i,s))
+    enddo
+    write(*,'(A,I3,A,ES12.4)') ' WS truncation: state ', s, '   discarded weight = ', wdrop/norm
+  enddo
+  deallocate(cfg, n_in_cfg, n_kept_cfg)
+
+end
+
+
+subroutine cs_remap_guess(n_old, det_old, coef_old, u)
+  use bitmasks
+  implicit none
+  BEGIN_DOC
+! Maps the complex coefficients of the determinants det_old onto the current
+! psi_det (determinants absent from det_old get 0, e.g. those added by
+! make_s2_eigenfunction) and normalizes each state with the Hermitian norm.
+! Used as the guess of the complex Davidson.
+  END_DOC
+  integer, intent(in)            :: n_old
+  integer(bit_kind), intent(in)  :: det_old(N_int,2,n_old)
+  complex*16, intent(in)         :: coef_old(n_old,N_states)
+  complex*16, intent(out)        :: u(N_det,N_states)
+
+  integer, external              :: get_index_in_psi_det_sorted_bit
+  integer(bit_kind), allocatable :: det_srt(:,:,:)
+  double precision, allocatable  :: pos(:,:), pos_srt(:,:)
+  double precision               :: norm
+  integer                        :: i, k, s
+
+  ! psi_det index of each determinant of psi_det_sorted_bit: sort the indices
+  ! with the same routine as the psi_det_sorted_bit provider
+  allocate(det_srt(N_int,2,N_det), pos(N_det,1), pos_srt(N_det,1))
+  do i = 1, N_det
+    pos(i,1) = dble(i)
+  enddo
+  call sort_dets_by_det_search_key(N_det, psi_det, pos, N_det, det_srt, pos_srt, 1)
+  PROVIDE psi_det_sorted_bit
+
+  u = (0.d0,0.d0)
+  do i = 1, n_old
+    k = get_index_in_psi_det_sorted_bit(det_old(1,1,i), N_int)
+    if (k > 0) then
+      u(nint(pos_srt(k,1)),:) = coef_old(i,:)
+    endif
+  enddo
+
+  do s = 1, N_states
+    norm = 0.d0
+    do i = 1, N_det
+      norm += dble(dconjg(u(i,s))*u(i,s))
+    enddo
+    u(:,s) = u(:,s) / dsqrt(norm)
+  enddo
+  deallocate(det_srt, pos, pos_srt)
+
+end
+
+
+subroutine cs_hermitian_overlap(n, u, v, ovl)
+  implicit none
+  BEGIN_DOC
+! |<u_s|v_s>| / (||u_s|| ||v_s||) for each state, with the Hermitian product.
+  END_DOC
+  integer, intent(in)            :: n
+  complex*16, intent(in)         :: u(n,N_states), v(n,N_states)
+  double precision, intent(out)  :: ovl(N_states)
+  complex*16                     :: uv
+  double precision               :: uu, vv
+  integer                        :: i, s
+
+  do s = 1, N_states
+    uv = (0.d0,0.d0)
+    uu = 0.d0
+    vv = 0.d0
+    do i = 1, n
+      uv = uv + dconjg(u(i,s))*v(i,s)
+      uu = uu + dble(dconjg(u(i,s))*u(i,s))
+      vv = vv + dble(dconjg(v(i,s))*v(i,s))
+    enddo
+    ovl(s) = abs(uv) / dsqrt(uu*vv)
+  enddo
 
 end

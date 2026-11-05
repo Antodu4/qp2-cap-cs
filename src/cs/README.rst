@@ -47,6 +47,11 @@ Key providers and subroutines
     state selection by S², and computes first-order corrections via the one-body
     density matrix.
 
+``dav_validate_cs.irp.f``
+    ``cs_dav_trajectory``: checks a converged root of the complex Davidson
+    (Im(E), S², distance to the extrapolation of the energies accepted at the
+    previous thetas) and records the accepted energies (``cs_dav_validate``).
+
 ``H_cs_matrix.irp.f``
     Builds the full CS Hamiltonian matrix in the determinant basis:
     ``H_matrix_all_dets_cs(i,j)``.

@@ -1,4 +1,4 @@
-subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_diag,Nint,converged)
+subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_diag,Nint,converged,u_fix)
   use bitmasks
   implicit none
   BEGIN_DOC
@@ -26,6 +26,9 @@ subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,
   !
   ! converged : (output) .true. if the Davidson procedure converged
   !
+  ! u_fix     : reference vectors of the state following with cs_sf_theta_ref
+  !             (input vectors of diagonalize_ci_cs, the same for all its retries)
+  !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
   integer, intent(in)            :: dim_in, sze, N_st, N_st_diag, Nint
@@ -33,6 +36,7 @@ subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,
   complex*16, intent(inout) :: u_in(dim_in,N_st_diag)
   complex*16, intent(out)  :: energies(N_st_diag), s2_out(N_st_diag)
   logical, intent(out)           :: converged
+  complex*16, intent(in)         :: u_fix(dim_in,N_st)
   complex*16, allocatable  :: H_jj(:)
 
   double precision, external     :: diag_H_mat_elem, diag_S_mat_elem
@@ -63,12 +67,12 @@ subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,
   !$OMP END DO
   !$OMP END PARALLEL
 
-  call davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,converged)
+  call davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,converged,u_fix)
   deallocate (H_jj)
 end
 
 
-subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,converged)
+subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,converged,u_fix)
   use bitmasks
   use mmap_module
   implicit none
@@ -92,6 +96,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   !
   ! N_st_diag_in : Number of states in which H is diagonalized. Assumed > sze
   !
+  ! u_fix : reference vectors of the state following with cs_sf_theta_ref
+  !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
   integer, intent(in)           :: dim_in, sze, N_st, N_st_diag_in, Nint
@@ -100,6 +106,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   complex*16,  intent(inout)    :: s2_out(N_st_diag_in)
   complex*16, intent(inout)     :: u_in(dim_in,N_st_diag_in)
   complex*16, intent(out)       :: energies(N_st_diag_in)
+  complex*16, intent(in)        :: u_fix(dim_in,N_st)
 
   integer                       :: iter, N_st_diag
   integer                       :: i,j,k,l,m
@@ -119,6 +126,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   integer                       :: shift, shift2, itermax, istate
   double precision              :: r1, r2, alpha, t1, t2
   logical                       :: state_ok(N_st_diag_in*davidson_sze_max)
+  logical                       :: s2_loose(N_st_diag_in*davidson_sze_max)
   integer                       :: nproc_target, info
   integer                       :: order(N_st_diag_in)
   double precision              :: cmax, val
@@ -140,7 +148,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   ! State following and restarts (cs_sf_fixed_ref, cs_sf_window, cs_dav_*)
   complex*16, allocatable       :: u_ref(:,:), u_thick(:,:), y_keep(:,:), y_keep_prev(:,:)
   complex*16                    :: e_win_ref(N_st), e_tot
-  logical                       :: window_on, win_ok, thick_next
+  logical                       :: window_on, win_ok, thick_next, relax_on
   integer                       :: off, idx0, n_rej_s2, n_rej_im, n_rej_win, n_thick
   character*(16)                :: dv_why
 
@@ -331,6 +339,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     allocate(y_keep(N_st_diag*itermax,N_st_diag), y_keep_prev(N_st_diag*itermax,N_st_diag))
   endif
   window_on = (cs_sf_window > 0.d0) .and. state_following
+  ! The filters of the state following are relaxed one by one when no
+  ! candidate passes them (instead of leaving the state without a root)
+  relax_on  = cs_sf_guard .or. window_on .or. (cs_sf_s2_tol < 0.6d0)
   e_win_ref = (0.d0,0.d0)
   off       = 0
   n_rej_s2  = 0
@@ -563,13 +574,22 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         s2(k) = s_(k,k)
       enddo
 
+      ! S2 filter: |S2 - expected_s2| < cs_sf_s2_tol for the state following
+      ! (0.6 without state following); s2_loose is the former 0.6 filter, used
+      ! when the strict one leaves no candidate
       if (only_expected_s2) then
           do k=1,shift2
-            state_ok(k) = ((dabs(dble(s2(k))-expected_s2) < 0.6d0) .and. (dabs(dimag(s2(k))) < 0.1d0))
+            s2_loose(k) = ((dabs(dble(s2(k))-expected_s2) < 0.6d0) .and. (dabs(dimag(s2(k))) < 0.1d0))
+            if (state_following) then
+              state_ok(k) = s2_loose(k) .and. (dabs(dble(s2(k))-expected_s2) < cs_sf_s2_tol)
+            else
+              state_ok(k) = s2_loose(k)
+            endif
           enddo
       else
         do k=1,size(state_ok)
           state_ok(k) = .True.
+          s2_loose(k) = .True.
         enddo
       endif
 
@@ -615,9 +635,18 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           enddo
 
           ! Overlap using the Hermitian product for state following. Reference:
-          ! the input vectors of the call (cs_sf_fixed_ref) or the vectors of
-          ! the last restart (u_in)
-          if (cs_sf_fixed_ref) then
+          ! the input vectors of diagonalize_ci_cs (cs_sf_theta_ref), the input
+          ! vectors of the call (cs_sf_fixed_ref) or the vectors of the last
+          ! restart (u_in)
+          if (cs_sf_theta_ref) then
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_fix(i,l) * DCONJG(U(i,shift2+k))
+                enddo
+              enddo
+            enddo
+          else if (cs_sf_fixed_ref) then
             do l = 1, N_st
               do k = 1, N_st_diag
                 do i = 1, sze
@@ -653,11 +682,12 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         state = 0
         do l = 1, N_st
 
-          ! Pass 1: S2, Im(E) (cs_sf_guard) and energy window (cs_sf_window)
-          ! filters. If no candidate is acceptable, pass 2 drops the Im(E)
-          ! filter, pass 3 the window and pass 4 the S2 filter, instead of
-          ! leaving idx = 0. Without cs_sf_guard and cs_sf_window, only pass 1.
-          do pass = 1, 4
+          ! Pass 1: S2 (cs_sf_s2_tol), Im(E) (cs_sf_guard) and energy window
+          ! (cs_sf_window) filters. If no candidate is acceptable, pass 2 drops
+          ! the Im(E) filter, pass 3 the window, pass 4 widens the S2 filter to
+          ! 0.6 and pass 5 drops it, instead of leaving idx = 0. Without
+          ! cs_sf_guard, cs_sf_window and a strict cs_sf_s2_tol, only pass 1.
+          do pass = 1, 5
             omax = 0d0
             idx = 0
             do k = 1, shift2
@@ -682,6 +712,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
                 accept = state_ok(k) .and. win_ok
               else if (pass == 3) then
                 accept = state_ok(k)
+              else if (pass == 4) then
+                accept = s2_loose(k)
               else
                 accept = .True.
               endif
@@ -692,7 +724,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
                 idx = k
               endif
             enddo
-            if ((idx /= 0) .or. (.not. (cs_sf_guard .or. window_on))) exit
+            if ((idx /= 0) .or. (.not. relax_on)) exit
           enddo
 
           if (pass > 1) then
@@ -702,6 +734,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
             else if (pass == 3) then
               print *, 'cs_sf_window: no candidate in the energy window for state', l,      &
                   '; window and Im(E) filters relaxed'
+            else if (pass == 4) then
+              print *, 'cs_sf_s2_tol: no candidate with |S2-expected_s2| <', cs_sf_s2_tol,  &
+                  'for state', l, '; S2 filter widened to 0.6'
             else
               print *, 'cs_sf: no candidate with the expected S2 for state', l,              &
                   '; all filters relaxed'
@@ -778,7 +813,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         enddo
 
         ! A candidate chosen after relaxing the filters must be moved to the front too
-        if (cs_sf_guard) then
+        if (relax_on) then
           do l = 1, N_st
             if (state(l) > 0) state_ok(state(l)) = .True.
           enddo
@@ -969,6 +1004,10 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       do l = 1, N_st
         write(6,'(A,I4,A,I2,A,F10.7)') ' DV restart cyc', itertot, ' st', l,                         &
             '  |<u|u_input>| =', dbg_sf_ovh(u_in(1,l), u_ref(1,l), sze)
+        if (cs_sf_theta_ref) then
+          write(6,'(A,I4,A,I2,A,F10.7)') ' DV restart cyc', itertot, ' st', l,                       &
+              '  |<u|u_theta_ref>| =', dbg_sf_ovh(u_in(1,l), u_fix(1,l), sze)
+        endif
       enddo
     endif
 

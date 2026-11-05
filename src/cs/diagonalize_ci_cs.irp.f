@@ -54,13 +54,28 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
 
    if (diag_algorithm == "Davidson") then
 
+     ! u_fix : input vectors, reference of the state following for all the
+     ! calls and retries below (cs_sf_theta_ref), and restart vectors when a
+     ! converged root is rejected (cs_dav_validate)
+     complex*16, allocatable :: u_fix(:,:), e_dav(:)
+     allocate(u_fix(N_det,N_states), e_dav(N_states))
+     u_fix(1:N_det,1:N_states) = u_in(1:N_det,1:N_states)
+
      call davidson_diag_HS2_complex_cs(psi_det,ci_eigenvectors_cs, ci_s2_cs, &
        size(ci_eigenvectors_cs,1),ci_electronic_energy_cs,               &
-       N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+       N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged,u_fix)
 
-     integer :: N_states_diag_save, n_retry
+     integer :: N_states_diag_save, n_retry, n_reject
+     logical :: from_ref, accepted
      N_states_diag_save = N_states_diag
-     n_retry = 0
+     n_retry  = 0
+     n_reject = 0
+     from_ref = .False.
+     accepted = .False.
+
+     ! cs_dav_validate: a converged root that fails the checks of
+     ! cs_dav_trajectory is rejected, and the retries start again from u_fix
+     do
      do while (.not.converged)
        complex*16, allocatable :: ci_electronic_energy_cs_tmp (:)
        complex*16, allocatable :: ci_eigenvectors_cs_tmp (:,:)
@@ -84,9 +99,15 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
            write(6,'(A,I4,A,I5,A)') ' DV retry', n_retry, '  N_states_diag', N_states_diag, &
                '  guess: Ritz vectors of the previous call'
          endif
+         ! Restart from the reference after a rejected root
+         if (from_ref) then
+           ci_eigenvectors_cs(1:N_det,1:N_states) = u_fix(1:N_det,1:N_states)
+           ci_eigenvectors_cs(1:N_det,N_states+1:N_states_diag) = (0.d0,0.d0)
+           from_ref = .False.
+         endif
          call davidson_diag_HS2_complex_cs(psi_det,ci_eigenvectors_cs, ci_s2_cs, &
            size(ci_eigenvectors_cs,1),ci_electronic_energy_cs,               &
-           N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+           N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged,u_fix)
          cycle
        endif
 
@@ -116,10 +137,17 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
        ci_electronic_energy_cs_tmp(1:N_states_diag_save) = ci_electronic_energy_cs(1:N_states_diag_save)
        ci_eigenvectors_cs_tmp(1:N_det,1:N_states_diag_save) = ci_eigenvectors_cs(1:N_det,1:N_states_diag_save)
        ci_s2_cs_tmp(1:N_states_diag_save) = ci_s2_cs(1:N_states_diag_save)
+       ! Restart from the reference after a rejected root (the other columns
+       ! are filled by the Davidson guess)
+       if (from_ref) then
+         ci_eigenvectors_cs_tmp(1:N_det,1:N_states) = u_fix(1:N_det,1:N_states)
+         ci_eigenvectors_cs_tmp(1:N_det,N_states+1:N_states_diag_save) = (0.d0,0.d0)
+         from_ref = .False.
+       endif
 
        call davidson_diag_HS2_complex_cs(psi_det,ci_eigenvectors_cs_tmp, ci_s2_cs_tmp, &
          size(ci_eigenvectors_cs_tmp,1),ci_electronic_energy_cs_tmp,               &
-         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged,u_fix)
 
        ci_electronic_energy_cs(1:N_states_diag_save) = ci_electronic_energy_cs_tmp(1:N_states_diag_save)
        ci_eigenvectors_cs(1:N_det,1:N_states_diag_save) = ci_eigenvectors_cs_tmp(1:N_det,1:N_states_diag_save)
@@ -129,6 +157,31 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
        deallocate (ci_eigenvectors_cs_tmp)
        deallocate (ci_s2_cs_tmp)
      enddo
+
+     if (.not. (cs_dav_validate .and. converged)) exit
+     do k = 1, N_states
+       e_dav(k) = ci_electronic_energy_cs(k) + e_itheta * dcmplx(nuclear_repulsion,0d0)
+     enddo
+     call cs_dav_trajectory('check', e_dav, ci_s2_cs, accepted)
+     if (accepted) exit
+     n_reject += 1
+     if (n_reject > cs_dav_validate_max) then
+       print *, ''
+       print *, '!!! WARNING: converged root rejected', n_reject, 'times (cs_dav_validate_max =', &
+           cs_dav_validate_max, ')'
+       print *, '!!! The last root is kept and not added to the trajectory'
+       print *, ''
+       exit
+     endif
+     write(6,'(A,I3,A)') ' DV validate restart', n_reject, '  from the input vectors of diagonalize_ci_cs'
+     converged = .False.
+     from_ref  = .True.
+     enddo
+
+     if (cs_dav_validate .and. accepted) then
+       call cs_dav_trajectory('record', e_dav, ci_s2_cs, accepted)
+     endif
+     deallocate(u_fix, e_dav)
 
      ! BUG (root cause of the theta=0 all-zero "Energy of the states" output):
      ! ci_eigenvectors_cs/ci_s2_cs/ci_electronic_energy_cs are never resized

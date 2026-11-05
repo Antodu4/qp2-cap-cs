@@ -175,7 +175,7 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       allocate(keep(size(tmp_cs,1)))
       call cs_truncate_wf(size(tmp_cs,1), tmp_det, tmp_cs, cs_warm_start_tol, &
                           cs_warm_start_cfg, n_keep, det_keep, cs_keep, keep)
-      write(*,'(A,A,I10,A,I10,A,ES10.2,A)') ' Warm start (', &
+      write(*,'(A,A,A,I10,A,I10,A,ES10.2,A)') ' Warm start (', &
                           trim(merge('cfg','det',cs_warm_start_cfg)), '): ', n_keep, ' /', &
                           size(tmp_cs,1), ' determinants kept (discarded weight < ', &
                           cs_warm_start_tol, ')'

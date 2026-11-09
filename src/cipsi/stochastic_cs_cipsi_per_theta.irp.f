@@ -60,7 +60,7 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   logical                        :: ok
 
   ! warm start: truncated wave function of the previous theta
-  logical                        :: warm, early_exit
+  logical                        :: warm
   integer                        :: n_keep, n_drop, n_resel
   logical, allocatable           :: keep(:)
   integer(bit_kind), allocatable :: det_keep(:,:,:), det_drop(:,:,:)
@@ -162,7 +162,6 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
 
     call wall_time(t_theta)
     warm = (cs_warm_start_det .or. cs_warm_start_cfg) .and. (k_theta > 1)
-    early_exit = .False.
 
     if (warm) then
       ! -----------------------------------------------------------------------
@@ -326,19 +325,6 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
 
       if (qp_stop()) exit
 
-      ! Warm start: the truncated space may already be converged at this theta;
-      ! do not add the selected determinants (the space would only grow from
-      ! one theta to the next). ZMQ_pt2 has already put them in H_apply_buffer,
-      ! which only copy_H_apply_buffer_to_wf empties: empty it here, otherwise
-      ! the first copy of the next theta adds them to its space.
-      if (warm .and. (maxval(abs(pt2_data % pt2(1:N_states))) <= pt2_max)) then
-        do j=0,nproc-1
-          H_apply_buffer(j)%N_det = 0
-        enddo
-        early_exit = .True.
-        exit
-      endif
-
       ! Add selected determinants
       call copy_H_apply_buffer_to_wf()
       if (save_wf_after_selection) then
@@ -457,9 +443,9 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
 
     if (cs_warm_start_debug) then
       call wall_time(t1)
-      write(*,'(A,ES12.4,A,I4,A,I10,A,F12.2,A,L2)') ' WS converged theta = ', theta_cs, &
+      write(*,'(A,ES12.4,A,I4,A,I10,A,F12.2,A)') ' WS converged theta = ', theta_cs, &
             '   CIPSI iterations = ', inner_iter-1, '   N_det = ', N_det, &
-            '   time = ', t1-t_theta, ' s   early exit = ', early_exit
+            '   time = ', t1-t_theta, ' s'
       if (warm) then
         PROVIDE psi_det_sorted_bit
         n_resel = 0

@@ -328,8 +328,13 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
 
       ! Warm start: the truncated space may already be converged at this theta;
       ! do not add the selected determinants (the space would only grow from
-      ! one theta to the next)
+      ! one theta to the next). ZMQ_pt2 has already put them in H_apply_buffer,
+      ! which only copy_H_apply_buffer_to_wf empties: empty it here, otherwise
+      ! the first copy of the next theta adds them to its space.
       if (warm .and. (maxval(abs(pt2_data % pt2(1:N_states))) <= pt2_max)) then
+        do j=0,nproc-1
+          H_apply_buffer(j)%N_det = 0
+        enddo
         early_exit = .True.
         exit
       endif

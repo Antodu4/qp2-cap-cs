@@ -1,4 +1,4 @@
-subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_diag,Nint,converged)
+subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_diag,Nint,converged,u_ref)
   use bitmasks
   implicit none
   BEGIN_DOC
@@ -26,11 +26,16 @@ subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,
   !
   ! converged : (output) .true. if the Davidson procedure converged
   !
+  ! u_ref     : reference vectors of the state following, used instead of the
+  !             vectors of the last restart when cs_sf_theta_ref is true (see
+  !             davidson_diag_hjj_sjj_complex_cs). Not modified.
+  !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
   integer, intent(in)            :: dim_in, sze, N_st, N_st_diag, Nint
   integer(bit_kind), intent(in)  :: dets_in(Nint,2,sze)
   complex*16, intent(inout) :: u_in(dim_in,N_st_diag)
+  complex*16, intent(in)    :: u_ref(dim_in,N_st)
   complex*16, intent(out)  :: energies(N_st_diag), s2_out(N_st_diag)
   logical, intent(out)           :: converged
   complex*16, allocatable  :: H_jj(:)
@@ -63,12 +68,12 @@ subroutine davidson_diag_hs2_complex_cs(dets_in,u_in,s2_out,dim_in,energies,sze,
   !$OMP END DO
   !$OMP END PARALLEL
 
-  call davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,converged)
+  call davidson_diag_hjj_sjj_complex_cs(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,converged,u_ref)
   deallocate (H_jj)
 end
 
 
-subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,converged)
+subroutine davidson_diag_hjj_sjj_complex_cs(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,converged,u_ref)
   use bitmasks
   use mmap_module
   implicit none
@@ -92,6 +97,28 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   !
   ! N_st_diag_in : Number of states in which H is diagonalized. Assumed > sze
   !
+  ! u_ref : reference vectors of the state following when cs_sf_theta_ref is
+  !   true. At each iteration, the root kept for state l is the Ritz vector
+  !   with the largest Hermitian overlap with a reference vector:
+  !   - cs_sf_theta_ref = .False. : the reference is u_in, which is overwritten
+  !     at each restart by the Ritz vectors kept at the end of the cycle. The
+  !     reference therefore follows the previous choice, and a transient
+  !     contamination (for instance by the random vectors added at a retry,
+  !     which break the spin symmetry) becomes the new reference: the root can
+  !     drift, cycle after cycle, to a spurious eigenvector with Im(E) > 0.
+  !   - cs_sf_theta_ref = .True. : the reference is u_ref, provided by
+  !     diagonalize_ci_cs and identical for all its calls and retries (the
+  !     vectors converged at the previous theta, or at the previous CIPSI
+  !     iteration). A contaminated Ritz vector overlaps it poorly, so the state
+  !     following returns to the root as soon as the subspace contains a good
+  !     approximation of it.
+  !   Only the choice of the root changes: eigenvalues, S^2 and residuals are
+  !   not affected.
+  !
+  ! This routine has its own name because the CAP Davidson
+  ! (src/cap/diagonalization_hs2_complex.irp.f) defines a routine
+  ! davidson_diag_hjj_sjj_complex with the former argument list.
+  !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
   integer, intent(in)           :: dim_in, sze, N_st, N_st_diag_in, Nint
@@ -99,6 +126,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   complex*16,  intent(in)       :: H_jj(sze)
   complex*16,  intent(inout)    :: s2_out(N_st_diag_in)
   complex*16, intent(inout)     :: u_in(dim_in,N_st_diag_in)
+  complex*16, intent(in)        :: u_ref(dim_in,N_st)
   complex*16, intent(out)       :: energies(N_st_diag_in)
 
   integer                       :: iter, N_st_diag
@@ -527,14 +555,26 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           !   call normalize_c(U(:,shift2+k),sze)
           ! enddo
 
-          ! Overlap using the Hermitian product for state following
-          do l = 1, N_st
-            do k = 1, N_st_diag
-              do i = 1, sze
-                overlp(k+j-1,l) += u_in(i,l) * DCONJG(U(i,shift2+k))
+          ! Overlap using the Hermitian product for state following.
+          ! Reference: u_ref (fixed for the whole diagonalization) with
+          ! cs_sf_theta_ref, u_in (vectors kept at the last restart) otherwise.
+          if (cs_sf_theta_ref) then
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_ref(i,l) * DCONJG(U(i,shift2+k))
+                enddo
               enddo
             enddo
-          enddo
+          else
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_in(i,l) * DCONJG(U(i,shift2+k))
+                enddo
+              enddo
+            enddo
+          endif
 
         enddo
 

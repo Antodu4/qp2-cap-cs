@@ -29,6 +29,7 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
    integer                        :: i,j,k, info
    complex*16, allocatable  :: s2_eigvalues(:)
    logical                        :: converged
+   complex*16, allocatable  :: u_ref(:,:)
 
    complex*16 :: e_itheta
    e_itheta = dcmplx(dcos(theta_cs), -dsin(theta_cs)) 
@@ -54,9 +55,22 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
 
    if (diag_algorithm == "Davidson") then
 
+     ! Reference vectors of the state following (used with cs_sf_theta_ref).
+     ! They are the input vectors of this routine: the eigenvectors converged
+     ! at the previous theta in a scan of theta, or at the previous CIPSI
+     ! iteration in the per-theta CS-CIPSI. The copy is taken once, before the
+     ! first Davidson call, and passed unchanged to that call and to all the
+     ! retries below. The retries restart from the unconverged output of the
+     ! previous call, which may already be contaminated; comparing the Ritz
+     ! vectors to u_ref instead keeps the state following anchored on a vector
+     ! known to describe the root. Without cs_sf_theta_ref, u_ref is passed but
+     ! not used.
+     allocate(u_ref(N_det,N_states))
+     u_ref(1:N_det,1:N_states) = u_in(1:N_det,1:N_states)
+
      call davidson_diag_HS2_complex_cs(psi_det,ci_eigenvectors_cs, ci_s2_cs, &
        size(ci_eigenvectors_cs,1),ci_electronic_energy_cs,               &
-       N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+       N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged,u_ref)
 
      integer :: N_states_diag_save
      N_states_diag_save = N_states_diag
@@ -77,7 +91,7 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
 
        call davidson_diag_HS2_complex_cs(psi_det,ci_eigenvectors_cs_tmp, ci_s2_cs_tmp, &
          size(ci_eigenvectors_cs_tmp,1),ci_electronic_energy_cs_tmp,               &
-         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged,u_ref)
 
        ci_electronic_energy_cs(1:N_states_diag_save) = ci_electronic_energy_cs_tmp(1:N_states_diag_save)
        ci_eigenvectors_cs(1:N_det,1:N_states_diag_save) = ci_eigenvectors_cs_tmp(1:N_det,1:N_states_diag_save)
@@ -111,6 +125,8 @@ subroutine diagonalize_ci_cs(u_in, energy, corr)
      if (N_states_diag > N_states_diag_save) then
        N_states_diag = N_states_diag_save
      endif
+
+     deallocate(u_ref)
 
    else if (diag_algorithm == "Lapack") then
 

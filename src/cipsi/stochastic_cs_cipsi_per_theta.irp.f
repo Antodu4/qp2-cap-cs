@@ -15,9 +15,24 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
 ! determinant space (optimized at the base theta) is reused for every theta.
 !
 ! For a faithful "complete CIPSI per theta", every theta restarts from the
-! same bootstrap determinant set (see the RESET block below). Switching to a
-! warm start (carry the previous theta's space over) is a one-line change
-! documented there.
+! same bootstrap determinant set (see the RESET block below), with a real
+! Davidson guess. This is the default.
+!
+! WARM START (cs_warm_start): every theta after the first starts instead
+! from the converged complex wave function of the previous theta, truncated
+! to 1-cs_warm_start_tol of its weight (lightest configurations discarded
+! first, see cs_truncate_wf). The truncated complex coefficients, already rotated, are
+! the Davidson guess, and the CIPSI then grows the space at the new theta,
+! where the discarded determinants can be selected again. Each theta stops
+! on the same test as without warm start, so it keeps the same margin of one
+! enlargement after the PT2 has passed pt2_max.
+!
+! Why truncate: starting from the full space of the previous theta, the
+! CIPSI could only add determinants, and the space would grow from one theta
+! to the next. Why not stop early when the truncated space already has a
+! small PT2: that would stop without the margin of one enlargement, and on
+! these small spaces Re(PT2) can cross zero by chance while Im(PT2) is still
+! large (an early exit of this kind was tested and removed).
   END_DOC
 
   integer                        :: i,j,k,l
@@ -51,6 +66,12 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   integer, allocatable           :: key(:), prev_key(:)
   integer                        :: idx
   logical                        :: ok
+
+  ! warm start: truncated wave function of the previous theta
+  logical                        :: warm
+  integer                        :: n_keep
+  integer(bit_kind), allocatable :: det_keep(:,:,:)
+  complex*16, allocatable        :: cs_keep(:,:)
 
   complex*16                     :: e_itheta
   double precision               :: hf_energy_ref
@@ -139,24 +160,52 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
                                      ' -- theta = ', theta_cs
     write(*,'(A)') '################################################################################'
 
-    ! -------------------------------------------------------------------------
-    ! RESET to the bootstrap determinant set => a complete CIPSI for each theta.
-    ! For a warm start instead (reuse the previous theta's space), comment the
-    ! three assignments + SOFT_TOUCH below and the diagonalize_CI that follows.
-    ! -------------------------------------------------------------------------
-    N_det = n_det_boot
-    psi_det (:,:,1:n_det_boot)         = det_boot(:,:,1:n_det_boot)
-    psi_coef(1:n_det_boot,1:N_states)  = coef_boot(1:n_det_boot,1:N_states)
-    SOFT_TOUCH N_det psi_det psi_coef
+    warm = cs_warm_start .and. (k_theta > 1)
+
+    if (warm) then
+      ! -----------------------------------------------------------------------
+      ! WARM START from the previous theta: its converged space and complex
+      ! eigenvectors (tmp_det, tmp_cs, set at the end of the previous inner
+      ! loop), truncated to 1-cs_warm_start_tol of the weight.
+      ! -----------------------------------------------------------------------
+      if (allocated(det_keep)) deallocate(det_keep,cs_keep)
+      allocate(det_keep(N_int,2,size(tmp_cs,1)), cs_keep(size(tmp_cs,1),N_states))
+      call cs_truncate_wf(size(tmp_cs,1), tmp_det, tmp_cs, cs_warm_start_tol, &
+                          n_keep, det_keep, cs_keep)
+      write(*,'(A,I10,A,I10,A,ES10.2,A)') ' Warm start: ', n_keep, ' /', &
+                          size(tmp_cs,1), ' determinants kept (discarded weight < ', &
+                          cs_warm_start_tol, ')'
+      ! The truncated space is spin-complete, so make_s2_eigenfunction below
+      ! adds no determinant. The real part of the coefficients is only used
+      ! by make_s2_eigenfunction and by the real diagonalize_CI below, which set up the real quantities
+      ! needed by the selection; the complex guess is built from cs_keep.
+      N_det = n_keep
+      psi_det (:,:,1:n_keep)        = det_keep(:,:,1:n_keep)
+      psi_coef(1:n_keep,1:N_states) = dble(cs_keep(1:n_keep,1:N_states))
+      SOFT_TOUCH N_det psi_det psi_coef
+    else
+      ! -----------------------------------------------------------------------
+      ! RESET to the bootstrap determinant set => a complete CIPSI for each theta.
+      ! -----------------------------------------------------------------------
+      N_det = n_det_boot
+      psi_det (:,:,1:n_det_boot)         = det_boot(:,:,1:n_det_boot)
+      psi_coef(1:n_det_boot,1:N_states)  = coef_boot(1:n_det_boot,1:N_states)
+      SOFT_TOUCH N_det psi_det psi_coef
+    endif
     if (s2_eig) then
       call make_s2_eigenfunction
     endif
     call diagonalize_CI
 
-    ! Initial CS wavefunction at this theta (guess from the real coefficients)
+    ! Initial CS wavefunction at this theta: the complex coefficients of the
+    ! previous theta (warm start) or the real coefficients (default).
     if (allocated(psi_cs)) deallocate(psi_cs,energy,corr)
     allocate(psi_cs(N_det,N_states), energy(N_states), corr(N_states))
-    psi_cs = dcmplx(psi_coef,0d0)
+    if (warm) then
+      call cs_remap_guess(n_keep, det_keep, cs_keep, psi_cs)
+    else
+      psi_cs = dcmplx(psi_coef,0d0)
+    endif
     call diagonalize_ci_cs(psi_cs,energy,corr)   ! sets psi_cs_coef, psi_energy_cs
 
     if (allocated(tmp_cs)) deallocate(tmp_cs,tmp_det)
@@ -376,5 +425,6 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   deallocate(e_theta, det_boot, coef_boot, zeros)
   if (allocated(psi_cs)) deallocate(psi_cs,energy,corr)
   if (allocated(tmp_cs)) deallocate(tmp_cs,tmp_det)
+  if (allocated(det_keep)) deallocate(det_keep,cs_keep)
 
 end

@@ -137,6 +137,7 @@ subroutine ZMQ_pt2(E, pt2_data, pt2_data_err, relative_error, N_in)
   PROVIDE psi_bilinear_matrix_transp_rows_loc psi_bilinear_matrix_transp_columns
   PROVIDE psi_bilinear_matrix_transp_order
   PROVIDE psi_det_hii selection_weight pseudo_sym
+  PROVIDE pt2_diag   ! read before the threads (pt2_alloc, debug diagnostics)
   PROVIDE n_act_orb n_inact_orb n_core_orb n_virt_orb n_del_orb seniority_max
   PROVIDE excitation_beta_max  excitation_alpha_max excitation_max
 
@@ -412,6 +413,7 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   double precision :: v, x, x2, x3, avg, avg2, avg3(N_states), eqt, E0, v0, n0(N_states), E0_im,avg_im, E0_norm, avg_norm
   double precision :: eqta(N_states)
   double precision :: time, time1, time0
+  double precision, allocatable :: E0_diag(:)   ! deterministic part of the diagnostics (pt2_diag)
 
   integer, allocatable :: f(:)
   logical, allocatable :: d(:)
@@ -470,6 +472,9 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   pt2_data_err % variance(pt2_stoch_istate) = huge(1.)
   pt2_data % overlap(:,pt2_stoch_istate) = 0.d0
   pt2_data_err % overlap(:,pt2_stoch_istate) = huge(1.)
+  pt2_data % diag(:,pt2_stoch_istate) = 0.d0
+  allocate(E0_diag(pt2_ndiag))
+  E0_diag(:) = 0.d0
   n = 1
   t = 0
   U = 0
@@ -509,12 +514,14 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
           E0 = 0.d0
           E0_im = 0d0
           E0_norm = 0d0
+          E0_diag(:) = 0d0
           v0 = 0.d0
           n0(:) = 0.d0
           do i=pt2_n_0(t),1,-1
             E0 += pt2_data_I(i) % pt2(pt2_stoch_istate)
             E0_im += pt2_data_I(i) % pt2_im(pt2_stoch_istate)
             E0_norm += pt2_data_I(i) % pt2_norm(pt2_stoch_istate)
+            E0_diag(:) += pt2_data_I(i) % diag(:,pt2_stoch_istate)
             v0 += pt2_data_I(i) % variance(pt2_stoch_istate)
             n0(:) += pt2_data_I(i) % overlap(:,pt2_stoch_istate)
           end do
@@ -552,6 +559,8 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
         pt2_data % pt2(pt2_stoch_istate) = avg
         pt2_data % pt2_im(pt2_stoch_istate) = avg_im
         pt2_data % pt2_norm(pt2_stoch_istate) = avg_norm
+        ! Diagnostics (pt2_diag): same estimator as the other sums
+        pt2_data % diag(:,pt2_stoch_istate) = E0_diag(:) + pt2_data_S(t) % diag(:,pt2_stoch_istate) / dble(c)
         pt2_data % variance(pt2_stoch_istate) = avg2
         pt2_data % overlap(:,pt2_stoch_istate) = avg3(:)
         call wall_time(time)

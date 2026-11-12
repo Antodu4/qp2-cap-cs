@@ -139,6 +139,7 @@ subroutine run_slave_main
       IRP_IF MPI_DEBUG
         call mpi_print('Entering OpenMP section')
       IRP_ENDIF
+      PROVIDE pt2_diag   ! read before the threads (pt2_alloc, debug diagnostics)
       !$OMP PARALLEL PRIVATE(i)
       i = omp_get_thread_num()
       call run_selection_slave(0,i,energy)
@@ -308,6 +309,7 @@ subroutine run_slave_main
           PROVIDE psi_bilinear_matrix_transp_order psi_selectors_coef_transp
           PROVIDE selection_weight pseudo_sym pt2_min_parallel_tasks
           call provide_for_zmq_pt2
+          PROVIDE pt2_diag   ! read before the threads (pt2_alloc, debug diagnostics)
 
           if (mpi_master) then
             print *,  'Running PT2'

@@ -81,6 +81,13 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   integer                        :: inner_iter, s, nrec, cap
   double precision, allocatable  :: rec(:,:), rec_tmp(:,:)
 
+  ! Debug diagnostics of the PT2 (pt2_diag): values of the space on which the
+  ! stopping test is evaluated, and one record per theta and state (CSREC)
+  logical                        :: stop_next
+  double precision, allocatable  :: var_stop(:), abspt2_stop(:), sumim_stop(:), sabs_stop(:)
+  double precision, allocatable  :: csrec(:,:)
+  integer                        :: ncsrec
+
   PROVIDE H_apply_buffer_allocated distributed_davidson mo_two_e_integrals_in_map
 
   threshold_generators = 1.d0
@@ -148,6 +155,12 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   ! ===========================================================================
   ! OUTER LOOP OVER THETA
   ! ===========================================================================
+  ncsrec = 0
+  if (pt2_diag) then
+    allocate(var_stop(N_states), abspt2_stop(N_states), sumim_stop(N_states), sabs_stop(N_states))
+    allocate(csrec(15, n_theta*N_states))
+  endif
+
   do k_theta = 1, n_theta
 
     theta_val = theta0 + dble(k_theta-1)*dtheta
@@ -257,6 +270,10 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
     pt2_data % variance = huge(1.e0)
 
     inner_iter = 0
+    if (pt2_diag) then
+      ! -1 : no CIPSI iteration at this theta (the loop was not entered)
+      var_stop(:) = -1.d0 ; abspt2_stop(:) = -1.d0 ; sumim_stop(:) = -1.d0 ; sabs_stop(:) = -1.d0
+    endif
 
     ! -------------------------------------------------------------------------
     ! INNER CIPSI LOOP at fixed theta
@@ -293,6 +310,16 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       call write_double(6,correlation_energy_ratio, 'Correlation ratio')
       call print_summary_cs(psi_energy_with_nucl_rep, &
        pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
+      if (pt2_diag) then
+        call print_pt2_diag_cs(pt2_data, 'iter')
+        ! Values of this space: the stopping test of the next loop head uses them
+        do s = 1, N_states
+          var_stop(s)    = pt2_data % variance(s)
+          abspt2_stop(s) = dsqrt(pt2_data % pt2(s)**2 + pt2_data % pt2_im(s)**2)
+          sumim_stop(s)  = pt2_data % pt2_norm(s)
+          sabs_stop(s)   = pt2_data % diag(2,s)
+        enddo
+      endif
       call save_energy(psi_energy_with_nucl_rep, pt2_data % pt2)
       call increment_n_iter(psi_energy_with_nucl_rep, pt2_data)
       call print_mol_properties()
@@ -393,6 +420,22 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       tmp_cs  = psi_cs_coef
       tmp_det = psi_det
 
+      if (pt2_diag) then
+        ! Same condition as the loop head: the decision taken on the PT2 of the
+        ! space before the enlargement that has just been done
+        stop_next = .not. ( (N_det < N_det_max) .and.                               &
+            (pt2_stop_value(pt2_data) > pt2_max) .and.                                 &
+            (maxval(abs(pt2_data % variance(1:N_states))) > variance_max) .and.        &
+            (correlation_energy_ratio <= correlation_energy_ratio_max) )
+        do s = 1, N_states
+          write(*,'(A,F7.4,A,I3,A,I2,A,I10,A,7(1X,ES12.4),A,L2)') ' STOPTEST theta', theta_cs, ' it', inner_iter, &
+              ' st', s, ' Ndet', N_det,                                                &
+              ' RePT2 ImPT2 |PT2| var sumIm S stopval :', pt2_data % pt2(s), pt2_data % pt2_im(s), &
+              abspt2_stop(s), var_stop(s), sumim_stop(s), sabs_stop(s), pt2_stop_value(pt2_data), &
+              '   stop =', stop_next
+        enddo
+      endif
+
       if (qp_stop()) exit
     enddo
 
@@ -442,6 +485,34 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
 
     write(*,'(A,ES16.8,A,I10)') ' Converged theta = ', theta_cs, '   N_det = ', N_det
 
+    if (pt2_diag) then
+      call print_pt2_diag_cs(pt2_data, 'final')
+      ! Record of this theta: final space, and space of the stopping decision
+      do s = 1, N_states
+        ncsrec = ncsrec + 1
+        csrec(1,ncsrec)  = theta_cs
+        csrec(2,ncsrec)  = dble(s)
+        csrec(3,ncsrec)  = dble(N_det)
+        csrec(4,ncsrec)  = dble(inner_iter-1)
+        csrec(5,ncsrec)  = dble(e_theta(s,k_theta))
+        csrec(6,ncsrec)  = dimag(e_theta(s,k_theta))
+        csrec(7,ncsrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
+        csrec(8,ncsrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
+        csrec(9,ncsrec)  = pt2_data % variance(s)
+        csrec(10,ncsrec) = pt2_data % pt2_norm(s)
+        csrec(11,ncsrec) = pt2_data % diag(2,s)
+        csrec(12,ncsrec) = var_stop(s)
+        csrec(13,ncsrec) = abspt2_stop(s)
+        csrec(14,ncsrec) = sumim_stop(s)
+        csrec(15,ncsrec) = sabs_stop(s)
+        call print_csrec(csrec(1,ncsrec))
+      enddo
+    endif
+
+    if (cs_write_wf_theta) then
+      call write_wf_cs_theta(theta_cs)
+    endif
+
     if (cs_warm_start_debug) then
       call wall_time(t1)
       write(*,'(A,ES12.4,A,I4,A,I10,A,F12.2,A)') ' WS converged theta = ', theta_cs, &
@@ -468,6 +539,17 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   ! ===========================================================================
   if (.not. allocated(rec)) allocate(rec(11,1))
   call cs_print_traj('per_theta', n_theta, theta0, dtheta, N_states, N_det_max, pt2_max, nrec, rec, e_theta)
+
+  if (pt2_diag) then
+    write(*,'(A)') ''
+    write(*,'(A)') ' CSREC : one line per theta and state (debug pt2_diag). Final space: E, E+PT2, variance, sum|Im e|,'
+    write(*,'(A)') ' CSREC   S = sum|e| ; space of the stopping decision: variance, |PT2|, sum|Im e|, S ; flag ok if'
+    write(*,'(A)') ' CSREC   the final variance is below 1e-3 (E+PT2 reliable), suspect otherwise (prefer E).'
+    do i = 1, ncsrec
+      call print_csrec(csrec(1,i))
+    enddo
+    deallocate(var_stop, abspt2_stop, sumim_stop, sabs_stop, csrec)
+  endif
 
   ! Restore the base theta
   theta_cs = theta0

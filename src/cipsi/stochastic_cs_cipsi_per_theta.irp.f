@@ -79,6 +79,8 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   ! Trajectory collection: one record (row) per (state,theta,iter), printed at the end.
   ! rec columns: 1=iter 2=n_det 3=theta 4=state 5=ReE 6=ImE 7=ReE+PT2 8=ImE+PT2 9=RePT2 10=ImPT2 11=variance
   integer                        :: inner_iter, s, nrec, cap
+  integer                        :: n_cipsi
+  logical                        :: final_pt2
   double precision, allocatable  :: rec(:,:), rec_tmp(:,:)
 
   ! Debug diagnostics of the PT2 (pt2_diag): values of the space on which the
@@ -440,11 +442,18 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
     enddo
 
     ! -------------------------------------------------------------------------
-    ! Final CS PT2 on the converged determinant set (no selection), so the
-    ! converged point carries a PT2 like every other iteration. Same CS path
-    ! as the final-PT2 block of run_stochastic_cs_cipsi.
+    ! End of the theta, as in run_stochastic_cs_cipsi (and the real CIPSI):
+    ! the converged energy of the final space is recorded without PT2. A final
+    ! PT2 (no selection) is computed only when the loop stopped because
+    ! N_det > N_det_max, i.e. when no space passed the stopping test.
     ! -------------------------------------------------------------------------
-    if (.not. qp_stop()) then
+    n_cipsi = inner_iter
+    final_pt2 = (.not.qp_stop()) .and.                                  &
+        (N_det > N_det_max) .and.                                       &
+        (pt2_stop_value(pt2_data) > pt2_max) .and.                      &
+        (maxval(abs(pt2_data % variance(1:N_states))) > variance_max) .and. &
+        (correlation_energy_ratio <= correlation_energy_ratio_max)
+    if (final_pt2) then
       call pt2_dealloc(pt2_data)
       call pt2_dealloc(pt2_data_err)
       call pt2_alloc(pt2_data, N_states)
@@ -453,54 +462,70 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0)
       psi_coef = psi_coef_tmpsave
       touch psi_coef
+      call print_summary_cs(psi_energy_with_nucl_rep, &
+       pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
     endif
 
-    ! Record the converged complex energy at this theta
+    ! Record the converged complex energy at this theta (final space, no PT2)
     do k = 1, N_states
       e_theta(k,k_theta) = psi_energy_cs(k) + e_itheta * dcmplx(nuclear_repulsion,0d0)
     enddo
 
-    ! Collect the converged point (E_var + final CS PT2) for each state
-    inner_iter = inner_iter + 1
-    if (nrec + N_states > cap) then
-      cap = max(2*cap, nrec + N_states, 1024)
-      allocate(rec_tmp(11,cap))
-      if (nrec > 0) rec_tmp(:,1:nrec) = rec(:,1:nrec)
-      call move_alloc(rec_tmp, rec)
+    ! Trajectory record of the final space: only with a final PT2 (N_det_max)
+    if (final_pt2) then
+      inner_iter = inner_iter + 1
+      if (nrec + N_states > cap) then
+        cap = max(2*cap, nrec + N_states, 1024)
+        allocate(rec_tmp(11,cap))
+        if (nrec > 0) rec_tmp(:,1:nrec) = rec(:,1:nrec)
+        call move_alloc(rec_tmp, rec)
+      endif
+      do s = 1, N_states
+        nrec = nrec + 1
+        rec(1,nrec)  = dble(inner_iter)
+        rec(2,nrec)  = dble(N_det)
+        rec(3,nrec)  = theta_cs
+        rec(4,nrec)  = dble(s)
+        rec(5,nrec)  = dble(e_theta(s,k_theta))
+        rec(6,nrec)  = dimag(e_theta(s,k_theta))
+        rec(7,nrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
+        rec(8,nrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
+        rec(9,nrec)  = pt2_data % pt2(s)
+        rec(10,nrec) = pt2_data % pt2_im(s)
+        rec(11,nrec) = pt2_data % variance(s)
+      enddo
     endif
-    do s = 1, N_states
-      nrec = nrec + 1
-      rec(1,nrec)  = dble(inner_iter)
-      rec(2,nrec)  = dble(N_det)
-      rec(3,nrec)  = theta_cs
-      rec(4,nrec)  = dble(s)
-      rec(5,nrec)  = dble(e_theta(s,k_theta))
-      rec(6,nrec)  = dimag(e_theta(s,k_theta))
-      rec(7,nrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
-      rec(8,nrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
-      rec(9,nrec)  = pt2_data % pt2(s)
-      rec(10,nrec) = pt2_data % pt2_im(s)
-      rec(11,nrec) = pt2_data % variance(s)
-    enddo
 
     write(*,'(A,ES16.8,A,I10)') ' Converged theta = ', theta_cs, '   N_det = ', N_det
 
     if (pt2_diag) then
-      call print_pt2_diag_cs(pt2_data, 'final')
-      ! Record of this theta: final space, and space of the stopping decision
+      if (final_pt2) then
+        call print_pt2_diag_cs(pt2_data, 'final')
+      endif
+      ! Record of this theta: final space (E, and its PT2 only if computed),
+      ! and space of the stopping decision
       do s = 1, N_states
         ncsrec = ncsrec + 1
         csrec(1,ncsrec)  = theta_cs
         csrec(2,ncsrec)  = dble(s)
         csrec(3,ncsrec)  = dble(N_det)
-        csrec(4,ncsrec)  = dble(inner_iter-1)
+        csrec(4,ncsrec)  = dble(n_cipsi)
         csrec(5,ncsrec)  = dble(e_theta(s,k_theta))
         csrec(6,ncsrec)  = dimag(e_theta(s,k_theta))
-        csrec(7,ncsrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
-        csrec(8,ncsrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
-        csrec(9,ncsrec)  = pt2_data % variance(s)
-        csrec(10,ncsrec) = pt2_data % pt2_norm(s)
-        csrec(11,ncsrec) = pt2_data % diag(2,s)
+        if (final_pt2) then
+          csrec(7,ncsrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
+          csrec(8,ncsrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
+          csrec(9,ncsrec)  = pt2_data % variance(s)
+          csrec(10,ncsrec) = pt2_data % pt2_norm(s)
+          csrec(11,ncsrec) = pt2_data % diag(2,s)
+        else
+          ! no PT2 on the final space: E+PT2 = E, final-space sums unknown (-1)
+          csrec(7,ncsrec)  = dble(e_theta(s,k_theta))
+          csrec(8,ncsrec)  = dimag(e_theta(s,k_theta))
+          csrec(9,ncsrec)  = -1.d0
+          csrec(10,ncsrec) = -1.d0
+          csrec(11,ncsrec) = -1.d0
+        endif
         csrec(12,ncsrec) = var_stop(s)
         csrec(13,ncsrec) = abspt2_stop(s)
         csrec(14,ncsrec) = sumim_stop(s)
@@ -516,7 +541,7 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
     if (cs_warm_start_debug) then
       call wall_time(t1)
       write(*,'(A,ES12.4,A,I4,A,I10,A,F12.2,A)') ' WS converged theta = ', theta_cs, &
-            '   CIPSI iterations = ', inner_iter-1, '   N_det = ', N_det, &
+            '   CIPSI iterations = ', n_cipsi, '   N_det = ', N_det, &
             '   time = ', t1-t_theta, ' s'
       if (warm) then
         PROVIDE psi_det_sorted_bit
@@ -543,8 +568,9 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   if (pt2_diag) then
     write(*,'(A)') ''
     write(*,'(A)') ' CSREC : one line per theta and state (debug pt2_diag). Final space: E, E+PT2, variance, sum|Im e|,'
-    write(*,'(A)') ' CSREC   S = sum|e| ; space of the stopping decision: variance, |PT2|, sum|Im e|, S ; flag ok if'
-    write(*,'(A)') ' CSREC   the final variance is below 1e-3 (E+PT2 reliable), suspect otherwise (prefer E).'
+    write(*,'(A)') ' CSREC   S = sum|e| (no final PT2 unless N_det_max: E+PT2 = E and -1) ; space of the stopping'
+    write(*,'(A)') ' CSREC   decision: variance, |PT2|, sum|Im e|, S ; flag ok if the variance (final space, or else'
+    write(*,'(A)') ' CSREC   space of the stopping decision) is below 1e-3, suspect otherwise.'
     do i = 1, ncsrec
       call print_csrec(csrec(1,i))
     enddo

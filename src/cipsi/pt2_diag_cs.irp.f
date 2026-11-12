@@ -144,14 +144,19 @@ subroutine print_csrec(r)
 ! Prints one record of the per-theta CS-CIPSI (debug pt2_diag), line CSREC :
 ! theta, state, N_det, CIPSI iterations, E (Re, Im), E+PT2 (Re, Im), then for
 ! the final space variance, sum|Im e|, S = sum|e|, then for the space of the
-! stopping decision variance, |PT2|, sum|Im e|, S, and a flag : ok if the final
-! variance is below 1e-3 (E+PT2 reliable to about 0.5 microhartree on Be-),
-! suspect otherwise (prefer E).
+! stopping decision variance, |PT2|, sum|Im e|, S, and a flag.
+! The final space has a PT2 only when the loop stopped on N_det_max; otherwise
+! E+PT2 = E and its variance, sum|Im e| and S are -1.
+! Flag : ok if the variance is below 1e-3 (final space if known, else space of
+! the stopping decision, whose variance is larger), suspect otherwise.
   END_DOC
   double precision, intent(in) :: r(15)
   character(len=8)             :: flag
+  double precision             :: var
 
-  if (r(9) < 1.d-3) then
+  var = r(9)
+  if (var < 0.d0) var = r(12)
+  if (var < 1.d-3) then
     flag = 'ok'
   else
     flag = 'suspect'

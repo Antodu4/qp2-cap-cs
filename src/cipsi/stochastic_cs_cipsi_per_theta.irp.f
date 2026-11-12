@@ -82,6 +82,7 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
   ! Trajectory collection: one record (row) per (state,theta,iter), printed at the end.
   ! rec columns: 1=iter 2=n_det 3=theta 4=state 5=ReE 6=ImE 7=ReE+PT2 8=ImE+PT2 9=RePT2 10=ImPT2 11=variance
   integer                        :: inner_iter, s, nrec, cap
+  logical                        :: final_pt2
   double precision, allocatable  :: rec(:,:), rec_tmp(:,:)
 
   PROVIDE H_apply_buffer_allocated distributed_davidson mo_two_e_integrals_in_map
@@ -362,11 +363,19 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
     enddo
 
     ! -------------------------------------------------------------------------
-    ! Final CS PT2 on the converged determinant set (no selection), so the
-    ! converged point carries a PT2 like every other iteration. Same CS path
-    ! as the final-PT2 block of run_stochastic_cs_cipsi.
+    ! End of the theta, as in run_stochastic_cs_cipsi and the real CIPSI.
+    ! The stopping test is checked after the selected determinants have been
+    ! added: the final space has no PT2. Its converged energy is recorded
+    ! without PT2 (block B of the trajectory); the last PT2 printed is that of
+    ! the space that passed the test. A PT2 of the final space (no selection)
+    ! is computed only when the CIPSI stopped because N_det > N_det_max.
     ! -------------------------------------------------------------------------
-    if (.not. qp_stop()) then
+    final_pt2 = (.not.qp_stop()) .and.                                  &
+        (N_det > N_det_max) .and.                                       &
+        (maxval(abs(pt2_data % pt2(1:N_states))) > pt2_max) .and.       &
+        (maxval(abs(pt2_data % variance(1:N_states))) > variance_max) .and. &
+        (correlation_energy_ratio <= correlation_energy_ratio_max)
+    if (final_pt2) then
       call pt2_dealloc(pt2_data)
       call pt2_dealloc(pt2_data_err)
       call pt2_alloc(pt2_data, N_states)
@@ -375,35 +384,89 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0)
       psi_coef = psi_coef_tmpsave
       touch psi_coef
+      call print_summary_cs(psi_energy_with_nucl_rep, &
+       pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
     endif
 
-    ! Record the converged complex energy at this theta
+    ! Record the converged complex energy at this theta (final space, no PT2)
     do k = 1, N_states
       e_theta(k,k_theta) = psi_energy_cs(k) + e_itheta * dcmplx(nuclear_repulsion,0d0)
     enddo
 
-    ! Collect the converged point (E_var + final CS PT2) for each state
-    inner_iter = inner_iter + 1
-    if (nrec + N_states > cap) then
-      cap = max(2*cap, nrec + N_states, 1024)
-      allocate(rec_tmp(11,cap))
-      if (nrec > 0) rec_tmp(:,1:nrec) = rec(:,1:nrec)
-      call move_alloc(rec_tmp, rec)
+    ! Trajectory record of the final space: only with a final PT2 (N_det_max)
+    if (final_pt2) then
+      inner_iter = inner_iter + 1
+      if (nrec + N_states > cap) then
+        cap = max(2*cap, nrec + N_states, 1024)
+        allocate(rec_tmp(11,cap))
+        if (nrec > 0) rec_tmp(:,1:nrec) = rec(:,1:nrec)
+        call move_alloc(rec_tmp, rec)
+      endif
+      do s = 1, N_states
+        nrec = nrec + 1
+        rec(1,nrec)  = dble(inner_iter)
+        rec(2,nrec)  = dble(N_det)
+        rec(3,nrec)  = theta_cs
+        rec(4,nrec)  = dble(s)
+        rec(5,nrec)  = dble(e_theta(s,k_theta))
+        rec(6,nrec)  = dimag(e_theta(s,k_theta))
+        rec(7,nrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
+        rec(8,nrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
+        rec(9,nrec)  = pt2_data % pt2(s)
+        rec(10,nrec) = pt2_data % pt2_im(s)
+        rec(11,nrec) = pt2_data % variance(s)
+      enddo
     endif
-    do s = 1, N_states
-      nrec = nrec + 1
-      rec(1,nrec)  = dble(inner_iter)
-      rec(2,nrec)  = dble(N_det)
-      rec(3,nrec)  = theta_cs
-      rec(4,nrec)  = dble(s)
-      rec(5,nrec)  = dble(e_theta(s,k_theta))
-      rec(6,nrec)  = dimag(e_theta(s,k_theta))
-      rec(7,nrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
-      rec(8,nrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
-      rec(9,nrec)  = pt2_data % pt2(s)
-      rec(10,nrec) = pt2_data % pt2_im(s)
-      rec(11,nrec) = pt2_data % variance(s)
-    enddo
+
+    ! -------------------------------------------------------------------------
+    ! Former end of the theta (kept for reference): a PT2 was always computed
+    ! on the final space and E+PT2 of that space was recorded for the theta.
+    ! This space is built after the stopping test, so its PT2 was not the one
+    ! that passed the test, and in CS it can be far from converged.
+    ! -------------------------------------------------------------------------
+!    ! -------------------------------------------------------------------------
+!    ! Final CS PT2 on the converged determinant set (no selection), so the
+!    ! converged point carries a PT2 like every other iteration. Same CS path
+!    ! as the final-PT2 block of run_stochastic_cs_cipsi.
+!    ! -------------------------------------------------------------------------
+!    if (.not. qp_stop()) then
+!      call pt2_dealloc(pt2_data)
+!      call pt2_dealloc(pt2_data_err)
+!      call pt2_alloc(pt2_data, N_states)
+!      call pt2_alloc(pt2_data_err, N_states)
+!      call build_psi_coef_cs_sorted(psi_cs_coef)
+!      call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0)
+!      psi_coef = psi_coef_tmpsave
+!      touch psi_coef
+!    endif
+!
+!    ! Record the converged complex energy at this theta
+!    do k = 1, N_states
+!      e_theta(k,k_theta) = psi_energy_cs(k) + e_itheta * dcmplx(nuclear_repulsion,0d0)
+!    enddo
+!
+!    ! Collect the converged point (E_var + final CS PT2) for each state
+!    inner_iter = inner_iter + 1
+!    if (nrec + N_states > cap) then
+!      cap = max(2*cap, nrec + N_states, 1024)
+!      allocate(rec_tmp(11,cap))
+!      if (nrec > 0) rec_tmp(:,1:nrec) = rec(:,1:nrec)
+!      call move_alloc(rec_tmp, rec)
+!    endif
+!    do s = 1, N_states
+!      nrec = nrec + 1
+!      rec(1,nrec)  = dble(inner_iter)
+!      rec(2,nrec)  = dble(N_det)
+!      rec(3,nrec)  = theta_cs
+!      rec(4,nrec)  = dble(s)
+!      rec(5,nrec)  = dble(e_theta(s,k_theta))
+!      rec(6,nrec)  = dimag(e_theta(s,k_theta))
+!      rec(7,nrec)  = dble(e_theta(s,k_theta))  + pt2_data % pt2(s)
+!      rec(8,nrec)  = dimag(e_theta(s,k_theta)) + pt2_data % pt2_im(s)
+!      rec(9,nrec)  = pt2_data % pt2(s)
+!      rec(10,nrec) = pt2_data % pt2_im(s)
+!      rec(11,nrec) = pt2_data % variance(s)
+!    enddo
 
     write(*,'(A,ES16.8,A,I10)') ' Converged theta = ', theta_cs, '   N_det = ', N_det
 

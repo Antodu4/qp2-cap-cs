@@ -112,6 +112,20 @@ selected CI, mirroring the two Complex Scaling (``cs``) algorithms:
     set (cold start). The determinant space, the energy and the PT2 are thus
     specific to each :math:`\eta`.
 
+In both modes, as in the real CIPSI, the stopping test is checked after the
+selected determinants have been added: the space that ends a CIPSI is the one
+built by the last iteration, and it has no PT2. Its energy is recorded without
+PT2 (block B); the last PT2 printed is that of the space that passed the test.
+A PT2 of the final space (no selection) is computed only when the CIPSI stopped
+because ``N_det > N_det_max``.
+
+With the debug keyword ``pt2_diag`` (``perturbation``), the CAP PT2 prints the
+same diagnostics of its contributions as the CS PT2 (lines ``PT2DIAG``), and the
+per-eta CAP-CIPSI prints the stopping test at each iteration (lines
+``STOPTEST``) and one record per :math:`\eta` and state (lines ``CAPREC``, same
+layout as the ``CSREC`` lines of the per-theta CS-CIPSI). The results are not
+changed.
+
 Both algorithms end with the same summary printed by ``cap_print_traj``:
 
 - a banner ``CAP SCAN SUMMARY  algorithm = fixed_ndet | per_eta``;

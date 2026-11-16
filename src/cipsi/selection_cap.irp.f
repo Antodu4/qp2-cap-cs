@@ -224,6 +224,13 @@ subroutine fill_buffer_cap_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, f
         pt2_data % pt2(istate)       = pt2_data % pt2(istate)      + dble(e_pert(istate))
         pt2_data % pt2_im(istate)    = pt2_data % pt2_im(istate)   + dimag(e_pert(istate))
         pt2_data % pt2_norm(istate)  = pt2_data % pt2_norm(istate) + dabs(dimag(e_pert(istate)))
+        ! Debug diagnostics of the contribution (pt2_diag; pt2_ndiag = 0 otherwise)
+        if (pt2_ndiag > 0) then
+          if (e_pert(istate) /= (0.d0,0.d0)) then
+            call pt2_diag_accumulate(pt2_data % diag(1,istate), e_pert(istate), &
+                 dble(psi_energy_cap(istate) - Hii), det, i_generator)
+          endif
+        endif
 
 !!!DEBUG
 !        delta_E = E0(istate) - Hii + E_shift

@@ -13,7 +13,7 @@ module selection_types
     double precision, allocatable :: rpt2(:)
     double precision, allocatable :: variance(:)
     double precision, allocatable :: overlap(:,:)
-    double precision, allocatable :: diag(:,:)   ! (pt2_ndiag, N) diagnostics of the CS PT2 (pt2_diag)
+    double precision, allocatable :: diag(:,:)   ! (pt2_ndiag, N) diagnostics of the CS and CAP PT2 (pt2_diag)
   endtype
 
   ! Diagnostics of the CS PT2 (keyword pt2_diag, debug only), accumulated in

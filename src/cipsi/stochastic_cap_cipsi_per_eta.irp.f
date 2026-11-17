@@ -24,6 +24,7 @@ subroutine run_stochastic_cap_cipsi_per_eta(Ev,PT2)
   integer                        :: to_select
   type(pt2_type)                 :: pt2_data, pt2_data_err
   logical, external              :: qp_stop
+  double precision, external     :: pt2_stop_value
 
   double precision               :: rss
   double precision, external     :: memory_of_double
@@ -180,7 +181,7 @@ subroutine run_stochastic_cap_cipsi_per_eta(Ev,PT2)
     ! -------------------------------------------------------------------------
     do while (                                                         &
           (N_det < N_det_max) .and.                                    &
-          (maxval(abs(pt2_data % pt2(1:N_states))) > pt2_max) .and.    &
+          (pt2_stop_value(pt2_data) > pt2_max) .and.                   &
           (maxval(abs(pt2_data % variance(1:N_states))) > variance_max) .and. &
           (correlation_energy_ratio <= correlation_energy_ratio_max)   &
           )
@@ -323,7 +324,7 @@ subroutine run_stochastic_cap_cipsi_per_eta(Ev,PT2)
     ! -------------------------------------------------------------------------
     final_pt2 = (.not.qp_stop()) .and.                                  &
         (N_det > N_det_max) .and.                                       &
-        (maxval(abs(pt2_data % pt2(1:N_states))) > pt2_max) .and.       &
+        (pt2_stop_value(pt2_data) > pt2_max) .and.                      &
         (maxval(abs(pt2_data % variance(1:N_states))) > variance_max) .and. &
         (correlation_energy_ratio <= correlation_energy_ratio_max)
     if (final_pt2) then

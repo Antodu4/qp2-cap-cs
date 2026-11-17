@@ -65,9 +65,15 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
 
    if (diag_algorithm == "Davidson") then
 
+     ! u_fix : input vectors, reference of the state following for all the
+     ! calls and retries below (cap_sf_fixed_ref)
+     complex*16, allocatable :: u_fix(:,:)
+     allocate(u_fix(N_det,N_states))
+     u_fix(1:N_det,1:N_states) = u_in(1:N_det,1:N_states)
+
      call davidson_diag_HS2_complex(psi_det,ci_eigenvectors_cap, ci_s2_cap, &
        size(ci_eigenvectors_cap,1),ci_electronic_energy_cap,               &
-       N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+       N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged,u_fix)
 
      integer :: N_states_diag_save
      N_states_diag_save = N_states_diag
@@ -88,7 +94,7 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
 
        call davidson_diag_HS2_complex(psi_det,ci_eigenvectors_cap_tmp, ci_s2_cap_tmp, &
          size(ci_eigenvectors_cap_tmp,1),ci_electronic_energy_cap_tmp,               &
-         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
+         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged,u_fix)
 
        ci_electronic_energy_cap(1:N_states_diag_save) = ci_electronic_energy_cap_tmp(1:N_states_diag_save)
        ci_eigenvectors_cap(1:N_det,1:N_states_diag_save) = ci_eigenvectors_cap_tmp(1:N_det,1:N_states_diag_save)
@@ -98,6 +104,7 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
        deallocate (ci_eigenvectors_cap_tmp)
        deallocate (ci_s2_cap_tmp)
      enddo
+     deallocate(u_fix)
 
      if (N_states_diag > N_states_diag_save) then
        N_states_diag = N_states_diag_save

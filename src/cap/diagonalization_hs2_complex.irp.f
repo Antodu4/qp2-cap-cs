@@ -1,4 +1,4 @@
-subroutine davidson_diag_hs2_complex(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_diag,Nint,converged)
+subroutine davidson_diag_hs2_complex(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_diag,Nint,converged,u_fix)
   use bitmasks
   implicit none
   BEGIN_DOC
@@ -23,11 +23,14 @@ subroutine davidson_diag_hs2_complex(dets_in,u_in,s2_out,dim_in,energies,sze,N_s
   !
   ! converged : (output) .true. if the Davidson procedure converged
   !
+  ! u_fix     : reference vectors of the state following with cap_sf_fixed_ref
+  !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
   integer, intent(in)            :: dim_in, sze, N_st, N_st_diag, Nint
   integer(bit_kind), intent(in)  :: dets_in(Nint,2,sze)
   complex*16, intent(inout) :: u_in(dim_in,N_st_diag)
+  complex*16, intent(in)    :: u_fix(dim_in,N_st)
   complex*16, intent(out)  :: energies(N_st_diag), s2_out(N_st_diag)
   logical, intent(out)           :: converged
   complex*16, allocatable  :: H_jj(:)
@@ -52,12 +55,12 @@ subroutine davidson_diag_hs2_complex(dets_in,u_in,s2_out,dim_in,energies,sze,N_s
   !$OMP END DO
   !$OMP END PARALLEL
 
-  call davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,converged)
+  call davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,converged,u_fix)
   deallocate (H_jj)
 end
 
 
-subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,converged)
+subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,converged,u_fix)
   use bitmasks
   use mmap_module
   implicit none
@@ -81,6 +84,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   !
   ! N_st_diag_in : Number of states in which H is diagonalized. Assumed > sze
   !
+  ! u_fix : reference vectors of the state following with cap_sf_fixed_ref
+  !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
   integer, intent(in)           :: dim_in, sze, N_st, N_st_diag_in, Nint
@@ -88,6 +93,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   complex*16,  intent(in)       :: H_jj(sze)
   complex*16,  intent(inout)    :: s2_out(N_st_diag_in)
   complex*16, intent(inout)     :: u_in(dim_in,N_st_diag_in)
+  complex*16, intent(in)        :: u_fix(dim_in,N_st)
   complex*16, intent(out)       :: energies(N_st_diag_in)
 
   integer                       :: iter, N_st_diag
@@ -505,14 +511,26 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
             call normalize_c(U(:,shift2+k),sze)
           enddo
 
-          ! Overlap
-          do l = 1, N_st
-            do k = 1, N_st_diag
-              do i = 1, sze
-                overlp(k+j-1,l) += u_in(i,l) * DCONJG(U(i,shift2+k))
+          ! Overlap using the Hermitian product. Reference: the input vectors
+          ! of diagonalize_ci_cap (u_fix), kept for all the restarts and retries
+          ! (cap_sf_fixed_ref), or the vectors of the last restart (u_in)
+          if (cap_sf_fixed_ref) then
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_fix(i,l) * DCONJG(U(i,shift2+k))
+                enddo
               enddo
             enddo
-          enddo
+          else
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_in(i,l) * DCONJG(U(i,shift2+k))
+                enddo
+              enddo
+            enddo
+          endif
 
         enddo
 

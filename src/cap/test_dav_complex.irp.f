@@ -53,7 +53,11 @@ subroutine dav_complex
  do i = 1, N_st
   u_in(1:sze,1:N_st) = dcmplx(psi_coef(1:sze,1:N_st),0d0)
  enddo
- call davidson_diag_hs2_complex(psi_det,u_in,s2_out,sze,energies,sze,N_st,N_st_diag_in,N_int,converged)
+ complex*16, allocatable :: u_fix(:,:)
+ allocate(u_fix(sze,N_st))
+ u_fix(1:sze,1:N_st) = u_in(1:sze,1:N_st)
+ call davidson_diag_hs2_complex(psi_det,u_in,s2_out,sze,energies,sze,N_st,N_st_diag_in,N_int,converged,u_fix)
+ deallocate(u_fix)
  call  diagonalize_ci_cap(u_in, energies,corr)
 
 end

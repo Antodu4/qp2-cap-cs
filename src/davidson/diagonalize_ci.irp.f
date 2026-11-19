@@ -60,6 +60,12 @@ END_PROVIDER
 
    if (diag_algorithm == "Davidson") then
 
+     ! u_fix : input vectors, reference of the state following for all the
+     ! calls and retries below (state_following_fixed_ref)
+     double precision, allocatable :: u_fix(:,:)
+     allocate(u_fix(N_det,N_states))
+     u_fix(1:N_det,1:N_states) = CI_eigenvectors(1:N_det,1:N_states)
+
      if (do_csf) then
        call davidson_diag_H_csf(psi_det,CI_eigenvectors, &
          size(CI_eigenvectors,1),CI_electronic_energy,               &
@@ -67,7 +73,7 @@ END_PROVIDER
      else
        call davidson_diag_HS2(psi_det,CI_eigenvectors, CI_s2, &
          size(CI_eigenvectors,1),CI_electronic_energy,               &
-         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,0,converged)
+         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,0,converged,u_fix)
      endif
 
      integer :: N_states_diag_save
@@ -110,7 +116,7 @@ END_PROVIDER
 
           call davidson_diag_HS2(psi_det,CI_eigenvectors_tmp, CI_s2_tmp, &
             size(CI_eigenvectors_tmp,1),CI_electronic_energy_tmp,               &
-            N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,0,converged)
+            N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,0,converged,u_fix)
 
           CI_electronic_energy(1:N_states_diag_save) = CI_electronic_energy_tmp(1:N_states_diag_save)
           CI_eigenvectors(1:N_det,1:N_states_diag_save) = CI_eigenvectors_tmp(1:N_det,1:N_states_diag_save)
@@ -123,6 +129,7 @@ END_PROVIDER
         endif
 
      enddo
+     deallocate(u_fix)
 
      if (N_states_diag > N_states_diag_save) then
        N_states_diag = N_states_diag_save

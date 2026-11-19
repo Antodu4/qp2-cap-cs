@@ -64,6 +64,12 @@ END_PROVIDER
          CI_eigenvectors_dressed(i,j) = psi_coef(i,j)
        enddo
      enddo
+     ! u_fix : input vectors, reference of the state following for all the
+     ! calls and retries below (state_following_fixed_ref)
+     double precision, allocatable :: u_fix(:,:)
+     allocate(u_fix(N_det,N_states))
+     u_fix(1:N_det,1:N_states) = CI_eigenvectors_dressed(1:N_det,1:N_states)
+
      converged = .False.
      if (do_csf) then
        call davidson_diag_H_csf(psi_det,CI_eigenvectors_dressed, &
@@ -72,7 +78,7 @@ END_PROVIDER
      else
        call davidson_diag_HS2(psi_det,CI_eigenvectors_dressed, CI_eigenvectors_s2_dressed,&
          size(CI_eigenvectors_dressed,1), CI_electronic_energy_dressed,&
-         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,1,converged)
+         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,1,converged,u_fix)
      endif
 
      integer :: N_states_diag_save
@@ -115,7 +121,7 @@ END_PROVIDER
 
           call davidson_diag_HS2(psi_det,CI_eigenvectors_tmp, CI_s2_tmp, &
             size(CI_eigenvectors_tmp,1),CI_electronic_energy_tmp,               &
-            N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,1,converged)
+            N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,1,converged,u_fix)
 
           CI_electronic_energy_dressed(1:N_states_diag_save) = CI_electronic_energy_tmp(1:N_states_diag_save)
           CI_eigenvectors_dressed(1:N_det,1:N_states_diag_save) = CI_eigenvectors_tmp(1:N_det,1:N_states_diag_save)
@@ -128,6 +134,7 @@ END_PROVIDER
         endif
 
      enddo
+     deallocate(u_fix)
      if (N_states_diag > N_states_diag_save) then
        N_states_diag = N_states_diag_save
        TOUCH N_states_diag

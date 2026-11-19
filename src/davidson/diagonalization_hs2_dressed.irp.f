@@ -29,7 +29,7 @@ BEGIN_PROVIDER [ integer, dressed_column_idx, (N_states) ]
  enddo
 END_PROVIDER
 
-subroutine davidson_diag_hs2(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_diag,Nint,dressing_state,converged)
+subroutine davidson_diag_hs2(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_diag,Nint,dressing_state,converged,u_fix)
   use bitmasks
   implicit none
   BEGIN_DOC
@@ -46,11 +46,14 @@ subroutine davidson_diag_hs2(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_d
   !
   ! N_st : Number of eigenstates
   !
+  ! u_fix : reference vectors of the state following with state_following_fixed_ref
+  !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
   integer, intent(in)            :: dim_in, sze, N_st, N_st_diag, Nint
   integer(bit_kind), intent(in)  :: dets_in(Nint,2,sze)
   double precision, intent(inout) :: u_in(dim_in,N_st_diag)
+  double precision, intent(in)   :: u_fix(dim_in,N_st)
   double precision, intent(out)  :: energies(N_st_diag), s2_out(N_st_diag)
   integer, intent(in)            :: dressing_state
   logical, intent(out)           :: converged
@@ -89,12 +92,12 @@ subroutine davidson_diag_hs2(dets_in,u_in,s2_out,dim_in,energies,sze,N_st,N_st_d
     enddo
   endif
 
-  call davidson_diag_hjj_sjj(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,dressing_state,converged)
+  call davidson_diag_hjj_sjj(dets_in,u_in,H_jj,S2_out,energies,dim_in,sze,N_st,N_st_diag,Nint,dressing_state,converged,u_fix)
   deallocate (H_jj)
 end
 
 
-subroutine davidson_diag_hjj_sjj(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,dressing_state,converged)
+subroutine davidson_diag_hjj_sjj(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_st,N_st_diag_in,Nint,dressing_state,converged,u_fix)
   use bitmasks
   use mmap_module
   implicit none
@@ -118,6 +121,8 @@ subroutine davidson_diag_hjj_sjj(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_
   !
   ! N_st_diag_in : Number of states in which H is diagonalized. Assumed > sze
   !
+  ! u_fix : reference vectors of the state following with state_following_fixed_ref
+  !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
   integer, intent(in)            :: dim_in, sze, N_st, N_st_diag_in, Nint
@@ -126,6 +131,7 @@ subroutine davidson_diag_hjj_sjj(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_
   integer, intent(in)            :: dressing_state
   double precision,  intent(inout) :: s2_out(N_st_diag_in)
   double precision, intent(inout) :: u_in(dim_in,N_st_diag_in)
+  double precision, intent(in)   :: u_fix(dim_in,N_st)
   double precision, intent(out)  :: energies(N_st_diag_in)
 
   integer                        :: iter, N_st_diag
@@ -555,14 +561,27 @@ subroutine davidson_diag_hjj_sjj(dets_in,u_in,H_jj,s2_out,energies,dim_in,sze,N_
           call dgemm('N','N', sze, N_st_diag, shift2,                    &
           1.d0, U, size(U,1), y(1,j), size(y,1), 0.d0, U(1,shift2+1), size(U,1))
 
-          ! Overlap
-          do l = 1, N_st
-            do k = 1, N_st_diag
-              do i = 1, sze
-                overlp(k+j-1,l) += u_in(i,l) * U(i,shift2+k)
+          ! Overlap. Reference: the input vectors of the caller (u_fix), kept
+          ! for all the restarts and retries (state_following_fixed_ref), or
+          ! the vectors of the last restart (u_in). u_fix is not normalized:
+          ! the choice of the maximum overlap for each state does not depend on it.
+          if (state_following_fixed_ref) then
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_fix(i,l) * U(i,shift2+k)
+                enddo
               enddo
             enddo
-          enddo
+          else
+            do l = 1, N_st
+              do k = 1, N_st_diag
+                do i = 1, sze
+                  overlp(k+j-1,l) += u_in(i,l) * U(i,shift2+k)
+                enddo
+              enddo
+            enddo
+          endif
 
         enddo
 

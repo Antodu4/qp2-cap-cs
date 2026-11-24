@@ -115,6 +115,7 @@ subroutine run_stochastic_cs_cipsi(Ev,PT2)
   double precision :: correlation_energy_ratio
 
   correlation_energy_ratio = 0.d0
+  call cs_extrap_reset()                   ! extrapolation points (base theta)
 
   do while (                                                         &
         (N_det < N_det_max) .and.                                    &
@@ -148,6 +149,8 @@ subroutine run_stochastic_cs_cipsi(Ev,PT2)
     if (do_cs .and. cs_pt2) then
       call print_summary_cs(psi_energy_with_nucl_rep, &
        pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
+      call cs_extrap_add(pt2_data, pt2_data_err)
+      call cs_extrap_print()
     else
       call print_summary(psi_energy_with_nucl_rep, &
        pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
@@ -331,6 +334,8 @@ subroutine run_stochastic_cs_cipsi(Ev,PT2)
     if (do_cs .and. cs_pt2) then
       call print_summary_cs(psi_energy_with_nucl_rep, &
        pt2_data , pt2_data_err, N_det, N_configuration, N_states, psi_s2)
+      call cs_extrap_add(pt2_data, pt2_data_err)
+      call cs_extrap_print()
     else
       call print_summary(psi_energy_with_nucl_rep, &
        pt2_data , pt2_data_err, N_det, N_configuration, N_states, psi_s2)

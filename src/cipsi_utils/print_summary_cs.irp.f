@@ -54,6 +54,14 @@ subroutine print_summary_cs(e_,pt2_data,pt2_data_err,n_det_,n_configuration_,n_s
           dble(psi_energy_cs(k) + e_itheta*dcmplx(nuclear_repulsion,0d0)) + pt2_data % pt2(k), &
           dimag(psi_energy_cs(k) + e_itheta*dcmplx(nuclear_repulsion,0d0)) + pt2_data % pt2_im(k), &
           ' +/- ', dcmplx(pt2_data_err % pt2(k), pt2_data_err % pt2_im(k))
+    ! Sums of the contributions e_alpha used by the extrapolation (cs_extrapolation.irp.f)
+    print *,  'sum |Re e|      = ', pt2_data % pt2_re_abs(k), ' +/- ', pt2_data_err % pt2_re_abs(k)
+    print *,  'sum |Im e|      = ', pt2_data % pt2_norm(k), ' +/- ', pt2_data_err % pt2_norm(k)
+    print *,  'E_aPT2 (Eq. 16) = ', pt2_data % pt2_re_abs(k), pt2_data % pt2_norm(k)
+    print *,  'S = sum |e|     = ', pt2_data % pt2_abs(k), ' +/- ', pt2_data_err % pt2_abs(k)
+    print *,  'variance |v|^2  = ', pt2_data % variance(k), ' +/- ', pt2_data_err % variance(k)
+    print *,  'sum v^2 (Re,Im) = ', pt2_data % variance_c_re(k), pt2_data % variance_c_im(k), ' +/- ', &
+          dcmplx(pt2_data_err % variance_c_re(k), pt2_data_err % variance_c_im(k))
     print *,  ''
   enddo
 

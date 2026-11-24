@@ -9,7 +9,11 @@ module selection_types
   type pt2_type
     double precision, allocatable :: pt2(:)
     double precision, allocatable :: pt2_im(:)
-    double precision, allocatable :: pt2_norm(:)
+    double precision, allocatable :: pt2_norm(:)     ! sum |Im e_alpha|            (CS, CAP)
+    double precision, allocatable :: pt2_re_abs(:)   ! sum |Re e_alpha|            (CS ; Eq. 16 of Damour et al. 2024)
+    double precision, allocatable :: pt2_abs(:)      ! S = sum |e_alpha|           (CS)
+    double precision, allocatable :: variance_c_re(:) ! Re sum <alpha|H|Psi>**2    (CS ; complex, like the numerator of e_alpha)
+    double precision, allocatable :: variance_c_im(:) ! Im sum <alpha|H|Psi>**2    (the stopping variance is sum |<alpha|H|Psi>|**2)
     double precision, allocatable :: rpt2(:)
     double precision, allocatable :: variance(:)
     double precision, allocatable :: overlap(:,:)
@@ -36,12 +40,21 @@ module selection_types
   integer, parameter :: pt2_diag_nfull   = 19 + 2*pt2_diag_nbin
   integer            :: pt2_ndiag        = 0
 
+  ! Points of the extrapolation of the CS energy (cs_extrapolation.irp.f), one per
+  ! CIPSI iteration of the current theta, oldest first : cs_ext(q, point, state) with
+  !   q = 1 N_det, 2 Re E, 3 Im E, 4 Re PT2, 5 Im PT2, 6 sum |Re e|, 7 sum |Im e|,
+  !       8 sum |e|, 9 variance sum |<a|H|Psi>|**2, 10 Re sum <a|H|Psi>**2, 11 Im sum <a|H|Psi>**2
+  integer, parameter            :: cs_ext_nq   = 11
+  integer, parameter            :: cs_ext_nmax = 64
+  integer                       :: cs_ext_n    = 0
+  double precision, allocatable :: cs_ext(:,:,:)
+
   contains
 
   integer function pt2_type_size(N)
     implicit none
     integer, intent(in) :: N
-    pt2_type_size = (5*n + n*n + pt2_ndiag*n)
+    pt2_type_size = (9*n + n*n + pt2_ndiag*n)
   end function
 
 end module

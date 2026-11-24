@@ -236,6 +236,13 @@ subroutine fill_buffer_cs_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, fo
         pt2_data % pt2(istate)       = pt2_data % pt2(istate)      + dble(e_pert(istate))
         pt2_data % pt2_im(istate)    = pt2_data % pt2_im(istate)   + dimag(e_pert(istate))
         pt2_data % pt2_norm(istate)  = pt2_data % pt2_norm(istate) + dabs(dimag(e_pert(istate)))
+        ! Sums of the extrapolation (cs_extrapolation.irp.f) : Eq. (16) of Damour et al.,
+        ! J. Phys. Chem. Lett. 15, 8296 (2024), E_aPT2 = sum |Re e| + i sum |Im e| ; S = sum |e| ;
+        ! sum <alpha|H|Psi>**2, complex like the numerator of e_alpha (the stopping variance above is sum |.|**2)
+        pt2_data % pt2_re_abs(istate)  = pt2_data % pt2_re_abs(istate)  + dabs(dble(e_pert(istate)))
+        pt2_data % pt2_abs(istate)     = pt2_data % pt2_abs(istate)     + cdabs(e_pert(istate))
+        pt2_data % variance_c_re(istate) = pt2_data % variance_c_re(istate) + dble(alpha_h_psi * alpha_h_psi)
+        pt2_data % variance_c_im(istate) = pt2_data % variance_c_im(istate) + dimag(alpha_h_psi * alpha_h_psi)
         ! Debug diagnostics of the contribution (pt2_diag; pt2_ndiag = 0 otherwise)
         if (pt2_ndiag > 0) then
           if (e_pert(istate) /= (0.d0,0.d0)) then

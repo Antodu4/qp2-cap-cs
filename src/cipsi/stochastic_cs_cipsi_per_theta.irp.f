@@ -272,6 +272,7 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
     pt2_data % variance = huge(1.e0)
 
     inner_iter = 0
+    call cs_extrap_reset()                 ! extrapolation points of this theta
     if (pt2_diag) then
       ! -1 : no CIPSI iteration at this theta (the loop was not entered)
       var_stop(:) = -1.d0 ; abspt2_stop(:) = -1.d0 ; sumim_stop(:) = -1.d0 ; sabs_stop(:) = -1.d0
@@ -312,6 +313,8 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       call write_double(6,correlation_energy_ratio, 'Correlation ratio')
       call print_summary_cs(psi_energy_with_nucl_rep, &
        pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
+      call cs_extrap_add(pt2_data, pt2_data_err)
+      call cs_extrap_print()
       if (pt2_diag) then
         call print_pt2_diag_cs(pt2_data, 'iter')
         ! Values of this space: the stopping test of the next loop head uses them
@@ -464,6 +467,8 @@ subroutine run_stochastic_cs_cipsi_per_theta(Ev,PT2)
       touch psi_coef
       call print_summary_cs(psi_energy_with_nucl_rep, &
        pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
+      call cs_extrap_add(pt2_data, pt2_data_err)
+      call cs_extrap_print()
     endif
 
     ! Record the converged complex energy at this theta (final space, no PT2)

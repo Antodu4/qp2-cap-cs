@@ -411,6 +411,8 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   integer, allocatable :: index(:)
 
   double precision :: v, x, x2, x3, avg, avg2, avg3(N_states), eqt, E0, v0, n0(N_states), E0_im,avg_im, E0_norm, avg_norm
+  ! Sums used by the extrapolation of the CS energy (cs_extrapolation.irp.f) : sum |Re e|, sum |e|, sum <alpha|H|Psi>**2 (Re, Im)
+  double precision :: E0_reabs, avg_reabs, E0_abs, avg_abs, v0_cre, avg2_cre, v0_cim, avg2_cim
   double precision :: eqta(N_states)
   double precision :: time, time1, time0
   double precision, allocatable :: E0_diag(:)   ! deterministic part of the diagnostics (pt2_diag)
@@ -468,6 +470,14 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   pt2_data_err % pt2_im(pt2_stoch_istate) = 0d0!huge(1.)
   pt2_data % pt2_norm(pt2_stoch_istate) = 0d0!-huge(1.)
   pt2_data_err % pt2_norm(pt2_stoch_istate) = 0d0!huge(1.)
+  pt2_data % pt2_re_abs(pt2_stoch_istate) = 0d0
+  pt2_data_err % pt2_re_abs(pt2_stoch_istate) = 0d0
+  pt2_data % pt2_abs(pt2_stoch_istate) = 0d0
+  pt2_data_err % pt2_abs(pt2_stoch_istate) = 0d0
+  pt2_data % variance_c_re(pt2_stoch_istate) = 0d0
+  pt2_data_err % variance_c_re(pt2_stoch_istate) = 0d0
+  pt2_data % variance_c_im(pt2_stoch_istate) = 0d0
+  pt2_data_err % variance_c_im(pt2_stoch_istate) = 0d0
   pt2_data % variance(pt2_stoch_istate) = huge(1.)
   pt2_data_err % variance(pt2_stoch_istate) = huge(1.)
   pt2_data % overlap(:,pt2_stoch_istate) = 0.d0
@@ -514,6 +524,10 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
           E0 = 0.d0
           E0_im = 0d0
           E0_norm = 0d0
+          E0_reabs = 0d0
+          E0_abs = 0d0
+          v0_cre = 0d0
+          v0_cim = 0d0
           E0_diag(:) = 0d0
           v0 = 0.d0
           n0(:) = 0.d0
@@ -521,6 +535,10 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
             E0 += pt2_data_I(i) % pt2(pt2_stoch_istate)
             E0_im += pt2_data_I(i) % pt2_im(pt2_stoch_istate)
             E0_norm += pt2_data_I(i) % pt2_norm(pt2_stoch_istate)
+            E0_reabs += pt2_data_I(i) % pt2_re_abs(pt2_stoch_istate)
+            E0_abs += pt2_data_I(i) % pt2_abs(pt2_stoch_istate)
+            v0_cre += pt2_data_I(i) % variance_c_re(pt2_stoch_istate)
+            v0_cim += pt2_data_I(i) % variance_c_im(pt2_stoch_istate)
             E0_diag(:) += pt2_data_I(i) % diag(:,pt2_stoch_istate)
             v0 += pt2_data_I(i) % variance(pt2_stoch_istate)
             n0(:) += pt2_data_I(i) % overlap(:,pt2_stoch_istate)
@@ -548,6 +566,10 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
         avg  = E0 + pt2_data_S(t) % pt2(pt2_stoch_istate) / dble(c)
         avg_im  = E0_im + pt2_data_S(t) % pt2_im(pt2_stoch_istate) / dble(c)
         avg_norm  = E0_norm + pt2_data_S(t) % pt2_norm(pt2_stoch_istate) / dble(c)
+        avg_reabs = E0_reabs + pt2_data_S(t) % pt2_re_abs(pt2_stoch_istate) / dble(c)
+        avg_abs   = E0_abs + pt2_data_S(t) % pt2_abs(pt2_stoch_istate) / dble(c)
+        avg2_cre  = v0_cre + pt2_data_S(t) % variance_c_re(pt2_stoch_istate) / dble(c)
+        avg2_cim  = v0_cim + pt2_data_S(t) % variance_c_im(pt2_stoch_istate) / dble(c)
         avg2 = v0 + pt2_data_S(t) % variance(pt2_stoch_istate) / dble(c)
         avg3(:) = n0(:) + pt2_data_S(t) % overlap(:,pt2_stoch_istate) / dble(c)
         if (((c>=10).and.(avg /= 0.d0)) .or. (n == N_det_generators) ) then
@@ -559,6 +581,10 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
         pt2_data % pt2(pt2_stoch_istate) = avg
         pt2_data % pt2_im(pt2_stoch_istate) = avg_im
         pt2_data % pt2_norm(pt2_stoch_istate) = avg_norm
+        pt2_data % pt2_re_abs(pt2_stoch_istate) = avg_reabs
+        pt2_data % pt2_abs(pt2_stoch_istate) = avg_abs
+        pt2_data % variance_c_re(pt2_stoch_istate) = avg2_cre
+        pt2_data % variance_c_im(pt2_stoch_istate) = avg2_cim
         ! Diagnostics (pt2_diag): same estimator as the other sums
         pt2_data % diag(:,pt2_stoch_istate) = E0_diag(:) + pt2_data_S(t) % diag(:,pt2_stoch_istate) / dble(c)
         pt2_data % variance(pt2_stoch_istate) = avg2
@@ -577,6 +603,22 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
           eqt = dabs((pt2_data_S2(t) % pt2_norm(pt2_stoch_istate) / c) - (pt2_data_S(t) % pt2_norm(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
           eqt = dsqrt(eqt / (dble(c) - 1.5d0))
           pt2_data_err % pt2_norm(pt2_stoch_istate) = eqt
+
+          eqt = dabs((pt2_data_S2(t) % pt2_re_abs(pt2_stoch_istate) / c) - (pt2_data_S(t) % pt2_re_abs(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
+          eqt = dsqrt(eqt / (dble(c) - 1.5d0))
+          pt2_data_err % pt2_re_abs(pt2_stoch_istate) = eqt
+
+          eqt = dabs((pt2_data_S2(t) % pt2_abs(pt2_stoch_istate) / c) - (pt2_data_S(t) % pt2_abs(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
+          eqt = dsqrt(eqt / (dble(c) - 1.5d0))
+          pt2_data_err % pt2_abs(pt2_stoch_istate) = eqt
+
+          eqt = dabs((pt2_data_S2(t) % variance_c_re(pt2_stoch_istate) / c) - (pt2_data_S(t) % variance_c_re(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
+          eqt = dsqrt(eqt / (dble(c) - 1.5d0))
+          pt2_data_err % variance_c_re(pt2_stoch_istate) = eqt
+
+          eqt = dabs((pt2_data_S2(t) % variance_c_im(pt2_stoch_istate) / c) - (pt2_data_S(t) % variance_c_im(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
+          eqt = dsqrt(eqt / (dble(c) - 1.5d0))
+          pt2_data_err % variance_c_im(pt2_stoch_istate) = eqt
 
           eqt = dabs((pt2_data_S2(t) % variance(pt2_stoch_istate) / c) - (pt2_data_S(t) % variance(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
           eqt = dsqrt(eqt / (dble(c) - 1.5d0))

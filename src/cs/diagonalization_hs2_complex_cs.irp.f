@@ -148,6 +148,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   ! State following and restarts (cs_sf_fixed_ref, cs_sf_window, cs_dav_*)
   complex*16, allocatable       :: u_ref(:,:), u_thick(:,:), y_keep(:,:), y_keep_prev(:,:)
   complex*16                    :: e_win_ref(N_st), e_tot
+  complex*16, allocatable       :: u_wr(:,:), w_wr(:,:), s_wr(:,:)   ! H|u_fix> for the window
   logical                       :: window_on, win_ok, thick_next, relax_on
   integer                       :: off, idx0, n_rej_s2, n_rej_im, n_rej_win, n_thick
   character*(16)                :: dv_why
@@ -502,15 +503,26 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           (0.d0,0d0), s_tmp, size(s_tmp,1))
 
       ! cs_sf_window: reference energy of each state, the Hermitian Rayleigh
-      ! quotient of its input vector at the first iteration of the call
+      ! quotient of the reference vector u_fix (input vectors of diagonalize_ci_cs,
+      ! kept for all its calls and retries). It is computed at the first iteration
+      ! of each call and is the same for all the calls of a diagonalization: a call
+      ! that drifted no longer moves the window onto its wrong root (formerly, the
+      ! window was centred on the input vector of each call). Cost: one product
+      ! H|u_fix> per call.
       if (window_on .and. (itertot == 1) .and. (iter == 1)) then
+        allocate(u_wr(sze,N_st), w_wr(sze,N_st), s_wr(sze,N_st))
+        u_wr(1:sze,1:N_st) = u_fix(1:sze,1:N_st)
+        call H_S2_u_0_nstates_openmp_complex_cs(w_wr,s_wr,u_wr,N_st,sze)
         do l = 1, N_st
-          e_win_ref(l) = h(l,l) / s_tmp(l,l) + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0)
+          e_win_ref(l) = sum(dconjg(u_wr(1:sze,l)) * w_wr(1:sze,l)) /                &
+                         sum(dconjg(u_wr(1:sze,l)) * u_wr(1:sze,l))                  &
+                         + e_itheta_cs * dcmplx(nuclear_repulsion, 0d0)
           if (cs_dav_debug) then
             write(6,'(A,I3,A,2F18.10,A,ES10.2)') ' DV window state', l, '  E_ref =', e_win_ref(l), &
                 '  half-width =', cs_sf_window
           endif
         enddo
+        deallocate(u_wr, w_wr, s_wr)
       endif
 
       ! Diagonalize the projected Hamiltonian using the generalized eigenvalue problem

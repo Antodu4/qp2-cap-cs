@@ -410,6 +410,7 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   integer, allocatable :: index(:)
 
   double precision :: v, x, x2, x3, avg, avg2, avg3(N_states), eqt, E0, v0, n0(N_states), E0_im,avg_im, E0_norm, avg_norm
+  double precision :: E0_abs, avg_abs   ! S = sum |e_alpha| (CS stopping test cs_stop_abs_sum)
   double precision :: eqta(N_states)
   double precision :: time, time1, time0
 
@@ -466,6 +467,8 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
   pt2_data_err % pt2_im(pt2_stoch_istate) = 0d0!huge(1.)
   pt2_data % pt2_norm(pt2_stoch_istate) = 0d0!-huge(1.)
   pt2_data_err % pt2_norm(pt2_stoch_istate) = 0d0!huge(1.)
+  pt2_data % pt2_abs(pt2_stoch_istate) = 0d0
+  pt2_data_err % pt2_abs(pt2_stoch_istate) = 0d0
   pt2_data % variance(pt2_stoch_istate) = huge(1.)
   pt2_data_err % variance(pt2_stoch_istate) = huge(1.)
   pt2_data % overlap(:,pt2_stoch_istate) = 0.d0
@@ -509,12 +512,14 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
           E0 = 0.d0
           E0_im = 0d0
           E0_norm = 0d0
+          E0_abs = 0d0
           v0 = 0.d0
           n0(:) = 0.d0
           do i=pt2_n_0(t),1,-1
             E0 += pt2_data_I(i) % pt2(pt2_stoch_istate)
             E0_im += pt2_data_I(i) % pt2_im(pt2_stoch_istate)
             E0_norm += pt2_data_I(i) % pt2_norm(pt2_stoch_istate)
+            E0_abs += pt2_data_I(i) % pt2_abs(pt2_stoch_istate)
             v0 += pt2_data_I(i) % variance(pt2_stoch_istate)
             n0(:) += pt2_data_I(i) % overlap(:,pt2_stoch_istate)
           end do
@@ -541,6 +546,7 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
         avg  = E0 + pt2_data_S(t) % pt2(pt2_stoch_istate) / dble(c)
         avg_im  = E0_im + pt2_data_S(t) % pt2_im(pt2_stoch_istate) / dble(c)
         avg_norm  = E0_norm + pt2_data_S(t) % pt2_norm(pt2_stoch_istate) / dble(c)
+        avg_abs   = E0_abs + pt2_data_S(t) % pt2_abs(pt2_stoch_istate) / dble(c)
         avg2 = v0 + pt2_data_S(t) % variance(pt2_stoch_istate) / dble(c)
         avg3(:) = n0(:) + pt2_data_S(t) % overlap(:,pt2_stoch_istate) / dble(c)
         if (((c>=10).and.(avg /= 0.d0)) .or. (n == N_det_generators) ) then
@@ -552,6 +558,7 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
         pt2_data % pt2(pt2_stoch_istate) = avg
         pt2_data % pt2_im(pt2_stoch_istate) = avg_im
         pt2_data % pt2_norm(pt2_stoch_istate) = avg_norm
+        pt2_data % pt2_abs(pt2_stoch_istate) = avg_abs
         pt2_data % variance(pt2_stoch_istate) = avg2
         pt2_data % overlap(:,pt2_stoch_istate) = avg3(:)
         call wall_time(time)
@@ -568,6 +575,10 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
           eqt = dabs((pt2_data_S2(t) % pt2_norm(pt2_stoch_istate) / c) - (pt2_data_S(t) % pt2_norm(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
           eqt = dsqrt(eqt / (dble(c) - 1.5d0))
           pt2_data_err % pt2_norm(pt2_stoch_istate) = eqt
+
+          eqt = dabs((pt2_data_S2(t) % pt2_abs(pt2_stoch_istate) / c) - (pt2_data_S(t) % pt2_abs(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
+          eqt = dsqrt(eqt / (dble(c) - 1.5d0))
+          pt2_data_err % pt2_abs(pt2_stoch_istate) = eqt
 
           eqt = dabs((pt2_data_S2(t) % variance(pt2_stoch_istate) / c) - (pt2_data_S(t) % variance(pt2_stoch_istate)/c)**2) ! dabs for numerical stability
           eqt = dsqrt(eqt / (dble(c) - 1.5d0))

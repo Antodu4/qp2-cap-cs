@@ -10,6 +10,7 @@ module selection_types
     double precision, allocatable :: pt2(:)
     double precision, allocatable :: pt2_im(:)
     double precision, allocatable :: pt2_norm(:)
+    double precision, allocatable :: pt2_abs(:)      ! S = sum |e_alpha| (CS ; stopping test cs_stop_abs_sum)
     double precision, allocatable :: rpt2(:)
     double precision, allocatable :: variance(:)
     double precision, allocatable :: overlap(:,:)
@@ -20,7 +21,7 @@ module selection_types
   integer function pt2_type_size(N)
     implicit none
     integer, intent(in) :: N
-    pt2_type_size = (5*n + n*n)
+    pt2_type_size = (6*n + n*n)
   end function
 
 end module

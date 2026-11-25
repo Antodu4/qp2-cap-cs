@@ -54,6 +54,7 @@ subroutine print_summary_cs(e_,pt2_data,pt2_data_err,n_det_,n_configuration_,n_s
           dble(psi_energy_cs(k) + e_itheta*dcmplx(nuclear_repulsion,0d0)) + pt2_data % pt2(k), &
           dimag(psi_energy_cs(k) + e_itheta*dcmplx(nuclear_repulsion,0d0)) + pt2_data % pt2_im(k), &
           ' +/- ', dcmplx(pt2_data_err % pt2(k), pt2_data_err % pt2_im(k))
+    print *,  'S = sum |e|     = ', pt2_data % pt2_abs(k), ' +/- ', pt2_data_err % pt2_abs(k)
     print *,  ''
   enddo
 

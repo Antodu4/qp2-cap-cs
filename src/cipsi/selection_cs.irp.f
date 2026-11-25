@@ -236,6 +236,8 @@ subroutine fill_buffer_cs_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, fo
         pt2_data % pt2(istate)       = pt2_data % pt2(istate)      + dble(e_pert(istate))
         pt2_data % pt2_im(istate)    = pt2_data % pt2_im(istate)   + dimag(e_pert(istate))
         pt2_data % pt2_norm(istate)  = pt2_data % pt2_norm(istate) + dabs(dimag(e_pert(istate)))
+        ! S = sum |e_alpha|, compared with cs_abs_sum_max in the stopping test (cs_stop_abs_sum)
+        pt2_data % pt2_abs(istate)   = pt2_data % pt2_abs(istate)  + cdabs(e_pert(istate))
 
         double precision :: tmp_val
 
